@@ -4,38 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>Wheel Arena</title>
-  <style>
-    html, body {
-      margin: 0; height: 100%; overflow: hidden; background: #1e1e1e;
-      touch-action: none; overscroll-behavior: none;
-    }
-    canvas { display: block; }
-
-    /* On-screen buttons float over the bottom corners of the game. */
-    #controls {
-      display: none; position: fixed; left: 0; right: 0; bottom: 0;
-      justify-content: space-between; padding: 12px; gap: 12px; pointer-events: none;
-      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-    }
-    #controls .steer { display: flex; gap: 12px; }
-    #controls button {
-      width: min(24vh, 110px); height: min(24vh, 110px);
-      font-size: 26px; color: #fff; text-shadow: 0 0 4px #000;
-      background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 16px;
-      touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
-    }
-    #controls button.flap { width: min(36vh, 160px); }
-    #controls button.held { background: rgba(255, 255, 255, 0.5); }
-
-    /* Touch screens play in landscape. In portrait, cover the game with a notice. */
-    #rotate-notice {
-      display: none; position: fixed; inset: 0; z-index: 10; background: #1e1e1e; color: #fff;
-      align-items: center; justify-content: center; text-align: center; font: 20px sans-serif;
-    }
-    @media (pointer: coarse) { #controls { display: flex; } }
-    @media (pointer: coarse) and (orientation: portrait) { #rotate-notice { display: flex; } }
-    body.show-controls #controls { display: flex; } /* ?touch in the URL: test the buttons on a desktop */
-  </style>
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/p5@2.3.4/lib/p5.js"></script>
   <script src="sim.js"></script>
   <script src="sketch.js"></script>
@@ -46,8 +15,10 @@
       <button data-action="left">&#9664;</button>
       <button data-action="right">&#9654;</button>
     </div>
-    <button data-action="flap" class="flap">FLAP</button>
+    <button data-action="boost" class="boost">FLAP</button>
   </div>
   <div id="rotate-notice">Rotate your device to landscape to play</div>
+  <button id="fullscreen-button">&#x26F6;</button>
 </body>
+
 </html>

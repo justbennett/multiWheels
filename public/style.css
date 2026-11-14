@@ -1,132 +1,38 @@
-body {
-    font-family: Arial, sans-serif;
-    text-align: left;
-    margin: 20px;
-}
-.game-container {
-    max-width: 800px;
-    margin: 20px;
-}
-.resources, .actions {
-    margin: 20px 0;
-}
-button {
-    margin: 5px;
-}
+    html, body {
+      margin: 0; height: 100%; overflow: hidden; background: #1e1e1e;
+      touch-action: none; overscroll-behavior: none;
+    }
+    canvas { display: block; }
 
-#menuButton {
-    position: fixed;
-    top: 20px;
-    right: 0px;
-    z-index: 1000;
-    border: none;
-}
+    /* On-screen buttons float over the bottom corners of the game. */
+    #controls {
+      display: none; position: fixed; left: 0; right: 0; bottom: 0;
+      justify-content: space-between; padding: 12px; gap: 12px; pointer-events: none;
+      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+    }
+    #controls .steer { display: flex; gap: 12px; }
+    #controls button {
+      width: min(24vh, 110px); height: min(24vh, 110px);
+      font-size: 26px; color: #fff; text-shadow: 0 0 4px #000;
+      background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 16px;
+      touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
+    }
+    #controls button.boost { width: min(36vh, 160px); }
+    #controls button.held { background: rgba(255, 255, 255, 0.5); }
 
-.modal {
-    position: fixed;
-    top: 40px;
-    right: 0;
-    transform: translate(200%, 0);
-    padding: 20px;
-    transition: opacity 0.5s ease, transform 0.5s ease;
-    z-index: 1001;
-}
+    /* Touch screens play in landscape. In portrait, cover the game with a notice. */
+    #rotate-notice {
+      display: none; position: fixed; inset: 0; z-index: 10; background: #1e1e1e; color: #fff;
+      align-items: center; justify-content: center; text-align: center; font: 20px sans-serif;
+    }
+    @media (pointer: coarse) { #controls { display: flex; } }
+    @media (pointer: coarse) and (orientation: portrait) { #rotate-notice { display: flex; } }
+    body.show-controls #controls { display: flex; } /* ?touch in the URL: test the buttons on a desktop */
 
-.modal.show {
-    transform: translate(0, 0);
-    opacity: 1;
-}
-
-#menuModal button {
-    display: block;
-    margin: 10px auto;
-}
-
-.modal-content p:hover {
-    display:block;
-    background-color: #f0f0f0;
-}
-
-#gameStatus {
-	border: 1px solid #ccc;
-	padding: 10px;
-	height: 250px;
-	overflow-y: scroll;
-	background-color: #00021d;
-	color: lightgreen;
-	font-family: monospace;
-}
-
-#gameStatus p {
-    margin: 5px 0;
-}
-
-#statusBox {
-    font-family: monospace;
-    bottom: 20px;
-    width: 90%;
-    background-color: #f9f9f9;
-    border: 1px solid #ccc;
-    padding: 10px;
-    z-index: 1002;
-}
-
-
-.actions p {
-    margin: 0px 0;
-}
-
-/* Make the marketing section header indicate it's clickable */
-#marketingSection {
-    cursor: pointer;
-    user-select: none;
-    display: inline-block;
-    margin-left: 20px;
-}
-
-#marketingTableBody tr {
-    opacity: 1;
-}
-
-#marketingTableBody tr.show {
-    opacity: 1;
-    transition: opacity 0.5s ease-in;
-}
-
-/* Small batch +10 buttons next to actions */
-.batch-btn {
-    margin-left: 6px;
-    padding: 2px 6px;
-    font-size: 0.9em;
-    vertical-align: middle;
-    border-radius: 4px;
-}
-
-.batch-btn:disabled {
-    opacity: 0.6;
-}
-
-/* Generic collapsible section styles */
-h2.collapsible-header {
-    cursor: pointer;
-    user-select: none;
-    outline: none;
-}
-
-/* Hide everything except the header when a section is collapsed */
-.collapsed > :not(h2) {
-    display: none;
-}
-
-/* Visible state helper for next-sibling content (used by marketingOptions and others) */
-.section-content {
-    transition: max-height 0.25s ease, opacity 0.2s ease;
-}
-
-.section-content.show {
-    display: block;
-}
-
-h2.collapsible-header:focus {
-    box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
-}
+    /* Fullscreen button */
+    #fullscreen-button {
+      position: fixed; top: 12px; right: 12px; z-index: 10;
+      width: 40px; height: 40px; font-size: 24px; color: #fff;
+      background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 8px;
+      touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
+    }

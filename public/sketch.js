@@ -12,6 +12,7 @@ const touchInput = { left: false, right: false, boost: false };
 function setup() {
   createCanvas(windowWidth, windowHeight);
   setupTouchControls();
+  setupFullscreenButton()
   connect();
 }
 
@@ -53,6 +54,32 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
+function setupFullscreenButton() {
+  const fullscreenButton = document.getElementById('fullscreen-button');
+  const page = document.documentElement;
+  const enterFullscreen = page.requestFullscreen || page.webkitRequestFullscreen;
+  const alreadyFullscreen = window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches
+    || navigator.standalone;
+
+  // Hide the button where it can't work (iPhone) or isn't needed (installed app).
+  if (!enterFullscreen || alreadyFullscreen) { fullscreenButton.style.display = 'none'; return; }
+
+  fullscreenButton.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      } else {
+        await enterFullscreen.call(page);
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape').catch(() => {}); // not every browser allows it
+        }
+      }
+    } catch (error) {
+      console.warn('Fullscreen was refused', error);
+    }
+  });
+}
+
 function draw() {
   background(30); // the bars around the game area when the window's shape differs from the world's
 
@@ -90,9 +117,14 @@ function draw() {
   pop();
 
   if (status) {
+    push();
+    fill(200,200,200,150);
+    rectMode(CENTER); 
+    noStroke(); rect(width / 2, height / 4, 1000, 60, 10);
     noStroke(); fill(0); textAlign(CENTER, CENTER); textSize(16);
     text(status, width / 2, height / 4);
     stroke(0);
+    pop();
   }
 }
 
