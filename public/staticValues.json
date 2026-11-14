@@ -1,0 +1,133 @@
+{
+  "offices": [
+    {
+      "name": "Paper Boy",
+      "cost": 0,
+      "influenceGain": 0,
+      "influenceNeeded": 0,
+      "salary": 10
+    },
+    {
+      "name": "Community Organizer",
+      "cost": 1000,
+      "influenceGain": 100,
+      "influenceNeeded": 50,
+      "salary": 100
+    },
+    {
+      "name": "School Board Member",
+      "cost": 10000,
+      "influenceGain": 500,
+      "influenceNeeded": 200,
+      "salary": 500
+    },
+    {
+      "name": "City Council",
+      "cost": 50000,
+      "influenceGain": 2500,
+      "influenceNeeded": 1000,
+      "salary": 5000
+    },
+    {
+      "name": "Mayor",
+      "cost": 200000,
+      "influenceGain": 10000,
+      "influenceNeeded": 5000,
+      "salary": 20000    
+    },
+    {
+      "name": "Governor",
+      "cost": 1000000,
+      "influenceGain": 1000000,
+      "influenceNeeded": 500000,
+      "salary": 100000
+    },
+    {
+      "name": "Senator",
+      "cost": 5000000,
+      "influenceGain": 20000000,
+      "influenceNeeded": 9000000,
+      "salary": 500000
+    },
+    {
+      "name": "President",
+      "cost": 20000000,
+      "influenceGain": 100000000,
+      "influenceNeeded": 50000000,
+      "salary": 2000000
+    },
+    {
+      "name": "Supreme Leader",
+      "cost": 100000000,
+      "influenceGain": 1000000000,
+      "influenceNeeded": 500000000,
+      "salary": 10000000
+    },
+    {
+      "name": "Planetary Overlord",
+      "cost": 1000000000,
+      "influenceGain": 10000000000,
+      "influenceNeeded": 5000000000,
+      "salary": 50000000
+    }
+  ],
+  "state": 
+    {
+    "money": 10,
+    "influence": 1,
+    "campaignWorkers": 0,
+    "powerLevel": 0,
+    "workerEfficency": 1, 
+    "workerCost": 200,
+    "marketingTvCost": 50,
+    "requestMoneyCost": 30,  
+    "averageDonation": 1.50,
+    "sentiment": 100,
+    "marketingLevel": 0
+    },
+  "prompts": {
+    "welcome": "Welcome to the Political Campaign Simulator! Start your journey from a humble city council member to the highest office in the land. Manage your resources wisely, gain influence, and make strategic decisions to climb the political ladder. Good luck!",
+    "instructions": "Use the buttons below to perform actions such as campaigning, fundraising, and running for office. Keep an eye on your money and influence levels to ensure your campaign's success. Your progress will be saved automatically, but you can use the menu options to save, load, or reset your game.",
+    "noMoney": "You don't have enough money to perform this action.",
+    "noInfluence": "You don't have enough influence to run for this office."
+  },
+  "marketing":[
+    {
+      "name": "Signs",
+      "description": "Simple yard sign to increase visibility.",
+      "baseCost": 10,
+      "influenceBoost": 2
+    },
+    {
+      "name": "TV Ads",
+      "description": "Television advertisements to reach a wide audience.",
+      "baseCost": 75,
+      "influenceBoost": 20
+    },
+    {
+      "name": "Billboards",
+      "description": "Large billboards placed in high-traffic areas.",
+      "baseCost": 100,
+      "influenceBoost": 30
+    },
+    {
+      "name": "Social Media Campaign",
+      "description": "Engage voters through social media platforms.",
+      "baseCost": 200,
+      "influenceBoost": 75
+    },
+    {
+      "name": "Rally Event",
+      "description": "Large gathering to energize supporters.",
+      "baseCost": 5000,
+      "influenceBoost": 1500
+    },
+    {
+      "name": "Mass Hypnosis",
+      "description": "Hypnotize the masses to gain overwhelming support.",
+      "baseCost": 500000000,
+      "influenceBoost": 200000000
+    }
+  ]
+
+}

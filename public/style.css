@@ -1,0 +1,132 @@
+body {
+    font-family: Arial, sans-serif;
+    text-align: left;
+    margin: 20px;
+}
+.game-container {
+    max-width: 800px;
+    margin: 20px;
+}
+.resources, .actions {
+    margin: 20px 0;
+}
+button {
+    margin: 5px;
+}
+
+#menuButton {
+    position: fixed;
+    top: 20px;
+    right: 0px;
+    z-index: 1000;
+    border: none;
+}
+
+.modal {
+    position: fixed;
+    top: 40px;
+    right: 0;
+    transform: translate(200%, 0);
+    padding: 20px;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+    z-index: 1001;
+}
+
+.modal.show {
+    transform: translate(0, 0);
+    opacity: 1;
+}
+
+#menuModal button {
+    display: block;
+    margin: 10px auto;
+}
+
+.modal-content p:hover {
+    display:block;
+    background-color: #f0f0f0;
+}
+
+#gameStatus {
+	border: 1px solid #ccc;
+	padding: 10px;
+	height: 250px;
+	overflow-y: scroll;
+	background-color: #00021d;
+	color: lightgreen;
+	font-family: monospace;
+}
+
+#gameStatus p {
+    margin: 5px 0;
+}
+
+#statusBox {
+    font-family: monospace;
+    bottom: 20px;
+    width: 90%;
+    background-color: #f9f9f9;
+    border: 1px solid #ccc;
+    padding: 10px;
+    z-index: 1002;
+}
+
+
+.actions p {
+    margin: 0px 0;
+}
+
+/* Make the marketing section header indicate it's clickable */
+#marketingSection {
+    cursor: pointer;
+    user-select: none;
+    display: inline-block;
+    margin-left: 20px;
+}
+
+#marketingTableBody tr {
+    opacity: 1;
+}
+
+#marketingTableBody tr.show {
+    opacity: 1;
+    transition: opacity 0.5s ease-in;
+}
+
+/* Small batch +10 buttons next to actions */
+.batch-btn {
+    margin-left: 6px;
+    padding: 2px 6px;
+    font-size: 0.9em;
+    vertical-align: middle;
+    border-radius: 4px;
+}
+
+.batch-btn:disabled {
+    opacity: 0.6;
+}
+
+/* Generic collapsible section styles */
+h2.collapsible-header {
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+}
+
+/* Hide everything except the header when a section is collapsed */
+.collapsed > :not(h2) {
+    display: none;
+}
+
+/* Visible state helper for next-sibling content (used by marketingOptions and others) */
+.section-content {
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+
+.section-content.show {
+    display: block;
+}
+
+h2.collapsible-header:focus {
+    box-shadow: 0 0 0 3px rgba(0,123,255,0.15);
+}
