@@ -7,7 +7,7 @@ let status = 'Connecting...';
 let snapshots = [];
 let lastSent = '';
 let currentWalls = Sim.WORLDS[0].walls;
-const touchInput = { left: false, right: false, flap: false };
+const touchInput = { left: false, right: false, boost: false };
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
@@ -97,7 +97,7 @@ function draw() {
 }
 
 // On-screen buttons (defined in index.html). Each button flips one flag in touchInput while a
-// finger is on it. Pointer events handle several fingers at once, so steering and flapping can
+// finger is on it. Pointer events handle several fingers at once, so steering and boostping can
 // happen together. Add ?touch to the URL to show the buttons on a desktop for mouse testing.
 function setupTouchControls() {
   if (new URLSearchParams(location.search).has('touch')) document.body.classList.add('show-controls');
@@ -131,7 +131,7 @@ function sendInput() {
     type: 'input',
     left:  keyIsDown('KeyA') || keyIsDown('ArrowLeft') || touchInput.left,
     right: keyIsDown('KeyD') || keyIsDown('ArrowRight') || touchInput.right,
-    flap:  keyIsDown('KeyW') || keyIsDown('ArrowUp') || keyIsDown('Space') || touchInput.flap,
+    boost:  keyIsDown('KeyW') || keyIsDown('ArrowUp') || keyIsDown('Space') || touchInput.boost,
   });
   if (msg !== lastSent) { ws.send(msg); lastSent = msg; }
 }

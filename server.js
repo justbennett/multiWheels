@@ -45,7 +45,7 @@ wss.on('connection', (ws) => {
     if (m.type === 'input') {
       // Only trust booleans, and only write to this socket's own wheel.
       ws.room.world.wheels[ws.index].input = {
-        left: m.left === true, right: m.right === true, flap: m.flap === true,
+        left: m.left === true, right: m.right === true, boost: m.boost === true,
       };
     }
   });

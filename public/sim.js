@@ -49,7 +49,7 @@
       id, x, y, vx: 0, vy: 0, angle: 0,
       radius: 10, restitution: 0.75,
       // Inputs are data. Locally they come from the keyboard, on the server from the network.
-      input: { left: false, right: false, flap: false },
+      input: { left: false, right: false, boost: false },
     };
   }
 
@@ -67,7 +67,7 @@
   function applyInput(w) {
     if (w.input.left)  w.vx -= MOVE_ACCEL;
     if (w.input.right) w.vx += MOVE_ACCEL;
-    if (w.input.flap)  w.vy = -FLAP;
+    if (w.input.boost)  w.vy = -FLAP;
     w.vx *= AIR_DRAG;
     w.vx = clamp(w.vx, -MAX_SPEED_X, MAX_SPEED_X);
     w.angle += (w.vx / 90) * Math.PI;
