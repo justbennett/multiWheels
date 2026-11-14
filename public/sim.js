@@ -4,14 +4,21 @@
   const GRAVITY = 0.2, MOVE_ACCEL = 0.1, MAX_SPEED_X = 5, AIR_DRAG = 0.985, FLAP = 1.5;
   const STEP_MS = 1000 / 60; // fixed timestep: one step() = one 60 Hz tick
 
+  // Wrapping: a wheel that leaves one side of the screen re-enters from the other. It lives in a
+  // range WRAP_MARGIN wider than the screen on each side, so it is fully off-screen (hidden) for a
+  // moment before it reappears. WRAP_MARGIN must be at least the wheel radius (10), or the wheel
+  // would still be visible when it jumps. A bigger margin means a longer time out of sight.
+  const WRAP_MARGIN = 20;
+  const WRAP_PERIOD = W + 2 * WRAP_MARGIN;
+
   // A world is plain data: walls plus one spawn point per player slot (up to 4).
   // Every wall has a type so hazards and other kinds can be added later.
   const WORLDS = [
     {
       name: 'Ledge',
       walls: [
-        { x1: -10,     y1: H - GROUND, x2: W+10,         y2: H - GROUND, type: 'solid' }, // floor
-        { x1: -10,     y1: 0,          x2: W+10,         y2: 0,          type: 'solid' }, // ceiling
+        { x1: -WRAP_MARGIN, y1: H - GROUND, x2: W + WRAP_MARGIN, y2: H - GROUND, type: 'solid' }, // floor
+        { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'solid' }, // ceiling
         { x1: W / 4, y1: H / 2,      x2: W * 3 / 4, y2: H / 2,      type: 'solid' }, // ledge
       ],
       spawnPoints: [
@@ -22,8 +29,8 @@
     {
       name: 'Two Ledges',
       walls: [
-        { x1: -10,   y1: H - GROUND, x2: W+10,   y2: H - GROUND, type: 'solid' }, // floor
-        { x1: -10,   y1: 0,          x2: W+10,   y2: 0,          type: 'solid' }, // ceiling
+        { x1: -WRAP_MARGIN, y1: H - GROUND, x2: W + WRAP_MARGIN, y2: H - GROUND, type: 'solid' }, // floor
+        { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'solid' }, // ceiling
         { x1: W * 0.1,   y1: H * 0.65, x2: W * 0.425, y2: H * 0.65, type: 'solid' }, // left ledge
         { x1: W * 0.575, y1: H * 0.65, x2: W * 0.9,   y2: H * 0.65, type: 'solid' }, // right ledge
         { x1: W * 0.375, y1: H * 0.35, x2: W * 0.625, y2: H * 0.35, type: 'solid' }, // high middle ledge
@@ -70,9 +77,9 @@
     w.vy += GRAVITY;
     w.x += w.vx;
     w.y += w.vy;
-    // Seamless wrap: subtract or add one world width, so the wheel doesn't jump when it crosses.
-    if (w.x < -w.radius) w.x += W;
-    if (w.x >= W + w.radius) w.x -= W;
+    // Wrap through the hidden margin. Both ends of the jump are off-screen, so it can't be seen.
+    if (w.x < -WRAP_MARGIN) w.x += WRAP_PERIOD;
+    if (w.x >= W + WRAP_MARGIN) w.x -= WRAP_PERIOD;
   }
 
   function collideWall(w, wall) {
@@ -100,9 +107,9 @@
   function collideWheels(a, b) {
     let dx = b.x - a.x;
     const dy = b.y - a.y;
-    // Wheels near the left and right edges are neighbors through the wrap-around.
-    if (dx > W / 2) dx -= W;
-    else if (dx < -W / 2) dx += W;
+    // Distance is measured the short way around the wrap.
+    if (dx > WRAP_PERIOD / 2) dx -= WRAP_PERIOD;
+    else if (dx < -WRAP_PERIOD / 2) dx += WRAP_PERIOD;
     const d = Math.hypot(dx, dy);
     const minD = a.radius + b.radius;
     if (d >= minD) return;
@@ -135,7 +142,7 @@
     return world.wheels.map((w) => ({ x: r2(w.x), y: r2(w.y), angle: r2(w.angle) }));
   }
 
-  const Sim = { W, H, STEP_MS, WORLDS, createWorld, step, snapshot };
+  const Sim = { W, H, STEP_MS, WRAP_MARGIN, WRAP_PERIOD, WORLDS, createWorld, step, snapshot };
   if (typeof module !== 'undefined' && module.exports) module.exports = Sim;
   else root.Sim = Sim;
 })(typeof window !== 'undefined' ? window : globalThis);

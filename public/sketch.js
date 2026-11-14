@@ -22,9 +22,10 @@ function connect() {
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
     if (m.type === 'waiting') {
-      status = 'Waiting for an opponent...';
+      status = "Waiting for an opponent...Have someone else go to http://<THIS COMPUTER'S IP>:3000 to join.";
     } else if (m.type === 'start') {
       myIndex = m.you;
+      status = '';
       if (Sim.WORLDS[m.world]) currentWalls = Sim.WORLDS[m.world].walls;
       // Node loads sim.js once at startup, so an old server process keeps running old physics
       // after the files change. An old server sends no world or size, which gives it away.
@@ -32,7 +33,6 @@ function connect() {
       if (m.world === undefined || !sizeMatches) {
         status = 'Server and page are out of sync. Restart the server, then refresh.';
       }
-      status = '';
       snapshots = [];
       lastSent = '';
     } else if (m.type === 'state') {
@@ -82,15 +82,9 @@ function draw() {
 
   for (const w of currentWalls) line(w.x1, w.y1, w.x2, w.y2);
 
-  // The world wraps left to right, so a wheel on the seam is drawn at both edges: half on each side.
-  if (wheels) {
-    for (const worldShift of [-Sim.W, 0, Sim.W]) {
-      push();
-      translate(worldShift, 0);
-      wheels.forEach((w, i) => drawWheel(w, COLORS[i], i === myIndex));
-      pop();
-    }
-  }
+  // Each wheel is drawn once. When it wraps it slides fully off one side, is hidden by the clip
+  // while it crosses the margin, then slides in from the other side.
+  if (wheels) wheels.forEach((w, i) => drawWheel(w, COLORS[i], i === myIndex));
 
   drawingContext.restore();
   pop();
@@ -153,12 +147,14 @@ function sampleState() {
   const k = constrain((renderT - a.t) / (b.t - a.t), 0, 1); // clamped: never extrapolate
   return a.wheels.map((wa, i) => {
     const wb = b.wheels[i];
-    // x wraps around, so blend along the shorter way around, which may cross the seam.
+    // x wraps around, so blend the shorter way around, which may cross the wrap.
     let deltaX = wb.x - wa.x;
-    if (deltaX > Sim.W / 2) deltaX -= Sim.W;
-    else if (deltaX < -Sim.W / 2) deltaX += Sim.W;
-    const blendedX = wa.x + deltaX * k;
-    return { x: (blendedX + Sim.W) % Sim.W, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k) };
+    if (deltaX > Sim.WRAP_PERIOD / 2) deltaX -= Sim.WRAP_PERIOD;
+    else if (deltaX < -Sim.WRAP_PERIOD / 2) deltaX += Sim.WRAP_PERIOD;
+    let blendedX = wa.x + deltaX * k;
+    if (blendedX < -Sim.WRAP_MARGIN) blendedX += Sim.WRAP_PERIOD;
+    if (blendedX >= Sim.W + Sim.WRAP_MARGIN) blendedX -= Sim.WRAP_PERIOD;
+    return { x: blendedX, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k) };
   });
 }
 
