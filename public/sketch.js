@@ -1,15 +1,58 @@
+/**
+ * Delay used when sampling past snapshots for interpolation.
+ * @const {number}
+ */
 const INTERP_DELAY = 100; // ms. Draw the world this far in the past so there are always two snapshots to blend.
+/**
+ * Player colors used for rendering the two wheels.
+ * @const {string[]}
+ */
 const COLORS = ['#4a90d9', '#e8833a'];
 
+/**
+ * Active WebSocket connection to the game server.
+ * @type {WebSocket | null}
+ */
 let ws;
+/**
+ * Local player index in the current match.
+ * @type {number | null}
+ */
 let myIndex = null;
+/**
+ * Status text displayed above the game area.
+ * @type {string}
+ */
 let status = 'Connecting...';
+/**
+ * Recent network snapshots used for interpolation.
+ * @type {{ t: number, wheels: { x: number, y: number, angle: number }[] }[]}
+ */
 let snapshots = [];
+/**
+ * Last serialized input message sent to the server.
+ * @type {string}
+ */
 let lastSent = '';
+/**
+ * The wall segments for the current map.
+ * @type {Array<{ x1: number, y1: number, x2: number, y2: number, type: string }>}
+ */
 let currentWalls = Sim.WORLDS[0].walls;
+/**
+ * Estimated offset between the client's clock and the server clock.
+ * @type {number | null}
+ */
 let clockOffset = null;
+/**
+ * Virtual input state for touch controls.
+ * @type {{ left: boolean, right: boolean, boost: boolean }}
+ */
 const touchInput = { left: false, right: false, boost: false };
 
+/**
+ * Initialize the drawing canvas and input listeners, then connect to the server.
+ */
 function setup() {
   createCanvas(windowWidth, windowHeight);
   setupTouchControls();
@@ -18,6 +61,9 @@ function setup() {
   connect();
 }
 
+/**
+ * Open a WebSocket connection to the game server and route gameplay messages.
+ */
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}`);
@@ -56,10 +102,16 @@ function connect() {
   };
 }
 
+/**
+ * Resize the canvas when the browser window changes size.
+ */
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
 }
 
+/**
+ * Set up the fullscreen button if the browser supports it.
+ */
 function setupFullscreenButton() {
   const fullscreenButton = document.getElementById('fullscreen-button');
   const page = document.documentElement;
@@ -86,6 +138,9 @@ function setupFullscreenButton() {
   });
 }
 
+/**
+ * Render the current frame, including interpolated world state and HUD overlays.
+ */
 function draw() {
   background(30); // the bars around the game area when the window's shape differs from the world's
 
@@ -125,7 +180,7 @@ function draw() {
   if (status) {
     push();
     fill(200,200,200,150);
-    rectMode(CENTER); 
+    rectMode(CENTER);
     noStroke(); rect(width / 2, height / 4, 1000, 60, 10);
     noStroke(); fill(0); textAlign(CENTER, CENTER); textSize(16);
     text(status, width / 2, height / 4);
@@ -134,9 +189,9 @@ function draw() {
   }
 }
 
-// On-screen buttons (defined in index.html). Each button flips one flag in touchInput while a
-// finger is on it. Pointer events handle several fingers at once, so steering and boostping can
-// happen together. Add ?touch to the URL to show the buttons on a desktop for mouse testing.
+/**
+ * Attach pointer events to the on-screen touch controls and update the virtual input state.
+ */
 function setupTouchControls() {
   if (new URLSearchParams(location.search).has('touch')) document.body.classList.add('show-controls');
 
@@ -162,7 +217,9 @@ function setupTouchControls() {
   }
 }
 
-// Send inputs only when they change. TCP delivers in order, so nothing needs resending.
+/**
+ * Send the player's current input to the server when it changes.
+ */
 function sendInput() {
   if (myIndex === null || ws.readyState !== WebSocket.OPEN) return;
   const msg = JSON.stringify({
@@ -174,7 +231,10 @@ function sendInput() {
   if (msg !== lastSent) { ws.send(msg); lastSent = msg; }
 }
 
-// Blend the two snapshots that surround (now - INTERP_DELAY).
+/**
+ * Blend the two snapshots that surround the current render time.
+ * @returns {{ x: number, y: number, angle: number }[] | null}
+ */
 function sampleState() {
   if (snapshots.length === 0 || clockOffset === null) return null;
   const renderT = performance.now() - clockOffset - INTERP_DELAY;
@@ -196,6 +256,12 @@ function sampleState() {
   });
 }
 
+/**
+ * Draw a single wheel including its facing marker and self-label.
+ * @param {{ x: number, y: number, angle: number }} w
+ * @param {string} col
+ * @param {boolean} isMe
+ */
 function drawWheel(w, col, isMe) {
   const r = 10;
   push();
@@ -213,9 +279,20 @@ function drawWheel(w, col, isMe) {
   if (isMe) { noStroke(); fill(0); textAlign(CENTER); textSize(10); text('YOU', w.x, w.y - 16); stroke(0); }
 }
 
+/**
+ * Steering zone sensitivity settings.
+ * @const {number}
+ */
 const STEER_DEADZONE_PX = 10;    // slide less than this and the wheel doesn't steer
+/**
+ * Maximum distance the steering knob can travel before its anchor follows the finger.
+ * @const {number}
+ */
 const STEER_MAX_TRAVEL_PX = 45;  // past this, the starting point follows the finger so reversing is quick
 
+/**
+ * Initialize the virtual steering pad for touch controls.
+ */
 function setupSteeringZone() {
   const steerZone = document.getElementById('steer-zone');
   const ring = steerZone.querySelector('.ring');
@@ -264,6 +341,10 @@ function setupSteeringZone() {
   steerZone.addEventListener('contextmenu', (event) => event.preventDefault());
 }
 
+/**
+ * Prevent the page from scrolling while arrow keys or space are used for steering.
+ * @returns {boolean}
+ */
 function keyPressed() {
   if ([' ', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(key)) return false; // stop page scroll
 }

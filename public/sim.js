@@ -1,18 +1,87 @@
 // Shared physics. Plain JS with no p5, so the same file runs in the browser and in Node.
 (function (root) {
+  /**
+   * World dimensions and ground height.
+   * @const {number}
+   */
   const W = 600, H = 270, GROUND = 15; // 20:9 world, like a wide phone in landscape. Every device scales this same area to fit.
+  /**
+   * Physics tuning values for movement, gravity, and boost behavior.
+   * @const {number}
+   */
   const GRAVITY = 0.2, MOVE_ACCEL = 0.1, MAX_SPEED_X = 5, AIR_DRAG = 0.985, BOOST = 1.5;
-  const STEP_MS = 1000 / 60; // fixed timestep: one step() = one 60 Hz tick
+  /**
+   * Fixed simulation timestep in milliseconds: one step() call equals one 60 Hz tick.
+   * @const {number}
+   */
+  const STEP_MS = 1000 / 60;
 
-  // Wrapping: a wheel that leaves one side of the screen re-enters from the other. It lives in a
-  // range WRAP_MARGIN wider than the screen on each side, so it is fully off-screen (hidden) for a
-  // moment before it reappears. WRAP_MARGIN must be at least the wheel radius (10), or the wheel
-  // would still be visible when it jumps. A bigger margin means a longer time out of sight.
+  /**
+   * Extra off-screen space used so wheels can wrap cleanly without being visible mid-transition.
+   * The wheel remains hidden for a moment before reappearing on the other side.
+   * @const {number}
+   */
   const WRAP_MARGIN = 20;
+  /**
+   * Total horizontal span used when wrapping around the world.
+   * @const {number}
+   */
   const WRAP_PERIOD = W + 2 * WRAP_MARGIN;
 
-  // A world is plain data: walls plus one spawn point per player slot (up to 4).
-  // Every wall has a type so hazards and other kinds can be added later.
+  /**
+   * @typedef {Object} Wall
+   * @property {number} x1
+   * @property {number} y1
+   * @property {number} x2
+   * @property {number} y2
+   * @property {string} type
+   */
+
+  /**
+   * @typedef {Object} WheelInput
+   * @property {boolean} left
+   * @property {boolean} right
+   * @property {boolean} boost
+   */
+
+  /**
+   * @typedef {Object} Wheel
+   * @property {number} id
+   * @property {number} x
+   * @property {number} y
+   * @property {number} vx
+   * @property {number} vy
+   * @property {number} angle
+   * @property {number} radius
+   * @property {number} restitution
+   * @property {WheelInput} input
+   */
+
+  /**
+   * @typedef {Object} SpawnPoint
+   * @property {number} x
+   * @property {number} y
+   */
+
+  /**
+   * @typedef {Object} WorldDefinition
+   * @property {string} name
+   * @property {Wall[]} walls
+   * @property {SpawnPoint[]} spawnPoints
+   */
+
+  /**
+   * @typedef {Object} WorldState
+   * @property {number} worldIndex
+   * @property {Wall[]} walls
+   * @property {Wheel[]} wheels
+   */
+
+  /**
+   * A world is plain data: walls plus one spawn point per player slot (up to 4).
+   * Every wall has a type so hazards and other kinds can be added later.
+   * @type {WorldDefinition[]}
+   */
   const WORLDS = [
     {
       name: 'Ledge',
@@ -42,8 +111,22 @@
     },
   ];
 
+  /**
+   * Clamp a value to the inclusive range [lo, hi].
+   * @param {number} v
+   * @param {number} lo
+   * @param {number} hi
+   * @returns {number}
+   */
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  /**
+   * Create a wheel entity at a spawn point.
+   * @param {number} id
+   * @param {number} x
+   * @param {number} y
+   * @returns {Wheel}
+   */
   function createWheel(id, x, y) {
     return {
       id, x, y, vx: 0, vy: 0, angle: 0,
@@ -53,7 +136,12 @@
     };
   }
 
-  // worldIndex picks an entry from WORLDS. playerCount is how many wheels to create (1 to 4).
+  /**
+   * Create a world state for a selected map and player count.
+   * @param {number} [worldIndex=0] - Index into WORLDS.
+   * @param {number} [playerCount=2] - Number of wheels to spawn, up to four.
+   * @returns {WorldState}
+   */
   function createWorld(worldIndex = 0, playerCount = 2) {
     const worldDefinition = WORLDS[worldIndex];
     const wheels = [];
@@ -64,6 +152,10 @@
     return { worldIndex, walls: worldDefinition.walls, wheels };
   }
 
+  /**
+   * Apply the current input to a wheel's motion and rotation for one tick.
+   * @param {Wheel} w
+   */
   function applyInput(w) {
     if (w.input.left)  w.vx -= MOVE_ACCEL;
     if (w.input.right) w.vx += MOVE_ACCEL;
@@ -73,6 +165,10 @@
     w.angle += (w.vx / 90) * Math.PI;
   }
 
+  /**
+   * Advance a wheel forward through one physics tick using gravity and wraparound.
+   * @param {Wheel} w
+   */
   function integrate(w) {
     w.vy += GRAVITY;
     w.x += w.vx;
@@ -82,6 +178,11 @@
     if (w.x >= W + WRAP_MARGIN) w.x -= WRAP_PERIOD;
   }
 
+  /**
+   * Resolve a collision between a wheel and a wall segment.
+   * @param {Wheel} w
+   * @param {Wall} wall
+   */
   function collideWall(w, wall) {
     const dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
     const t = clamp(((w.x - wall.x1) * dx + (w.y - wall.y1) * dy) / (dx * dx + dy * dy), 0, 1);
@@ -104,6 +205,11 @@
     if (ny < -0.98) w.vx *= 0.98;
   }
 
+  /**
+   * Resolve a collision between two wheels, taking wraparound into account.
+   * @param {Wheel} a
+   * @param {Wheel} b
+   */
   function collideWheels(a, b) {
     let dx = b.x - a.x;
     const dy = b.y - a.y;
@@ -128,7 +234,10 @@
     b.vx += nx * j; b.vy += ny * j;
   }
 
-  // Advance the world by exactly one fixed tick.
+  /**
+   * Advance the world by exactly one fixed tick.
+   * @param {WorldState} world
+   */
   function step(world) {
     for (const w of world.wheels) { applyInput(w); integrate(w); }
     for (const w of world.wheels) for (const wall of world.walls) collideWall(w, wall);
@@ -137,11 +246,36 @@
         collideWheels(world.wheels[i], world.wheels[j]);
   }
 
+  /**
+   * Round a number to a readable precision for network snapshots.
+   * @param {number} n
+   * @returns {number}
+   */
   const r2 = (n) => Math.round(n * 100) / 100;
+
+  /**
+   * Produce a compact snapshot of wheel positions for sending to the client.
+   * @param {WorldState} world
+   * @returns {{x:number, y:number, angle:number}[]}
+   */
   function snapshot(world) {
     return world.wheels.map((w) => ({ x: r2(w.x), y: r2(w.y), angle: r2(w.angle) }));
   }
 
+  /**
+   * Shared simulation API exposed to both the browser and Node.
+   * @type {{
+   *   W: number,
+   *   H: number,
+   *   STEP_MS: number,
+   *   WRAP_MARGIN: number,
+   *   WRAP_PERIOD: number,
+   *   WORLDS: WorldDefinition[],
+   *   createWorld: (worldIndex?: number, playerCount?: number) => WorldState,
+   *   step: (world: WorldState) => void,
+   *   snapshot: (world: WorldState) => {x:number, y:number, angle:number}[]
+   * }}
+   */
   const Sim = { W, H, STEP_MS, WRAP_MARGIN, WRAP_PERIOD, WORLDS, createWorld, step, snapshot };
   if (typeof module !== 'undefined' && module.exports) module.exports = Sim;
   else root.Sim = Sim;

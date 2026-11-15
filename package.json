@@ -2,6 +2,16 @@
   "name": "wheel-arena",
   "version": "1.0.0",
   "private": true,
-  "scripts": { "start": "node server.js", "dev": "node --watch server.js" },
-  "dependencies": { "ws": "^8.18.0" }
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "docs": "jsdoc server.js public/sim.js -d out"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "jsdoc": "^4.0.5"
+  }
+  
 }

@@ -4,11 +4,26 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 const Sim = require('./public/sim.js');
 
+/**
+ * The port the server listens on.
+ * @type {number}
+ */
 const PORT = process.env.PORT || 3000;
+/**
+ * Directory containing the static browser assets.
+ * @type {string}
+ */
 const PUBLIC = path.join(__dirname, 'public');
+/**
+ * MIME types used for serving static files.
+ * @type {Record<string, string>}
+ */
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 
-// ---- Static files (index.html, sim.js, sketch.js) ----
+/**
+ * Create the HTTP server and serve static files from the public folder.
+ * @type {http.Server}
+ */
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
   const file = path.normalize(path.join(PUBLIC, urlPath === '/' ? 'index.html' : urlPath));
@@ -20,12 +35,27 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// ---- Matchmaking ----
+/**
+ * WebSocket server used for matchmaking and gameplay synchronization.
+ * @type {WebSocketServer}
+ */
 const wss = new WebSocketServer({ server, maxPayload: 1024 });
+/**
+ * The first waiting player queued for a match.
+ * @type {WebSocket | null}
+ */
 let waiting = null;
 
+/**
+ * Send a JSON message through a socket if it is still open.
+ * @param {WebSocket} ws
+ * @param {object} msg
+ */
 const send = (ws, msg) => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
 
+/**
+ * Handle a new client connection and either pair it with an existing waiting player or queue it.
+ */
 wss.on('connection', (ws) => {
   ws.room = null;
   ws.index = null;
@@ -56,15 +86,21 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ---- One room = one world + one 60 Hz loop ----
-
-// WORLD=1 node server.js pins a world for testing. Otherwise a random one is picked.
+/**
+ * Choose the world used for a room. Set WORLD=1 to pin a specific map during testing.
+ * @returns {number}
+ */
 function chooseWorldIndex() {
   const pinnedWorld = Number(process.env.WORLD);
   if (Number.isInteger(pinnedWorld) && pinnedWorld >= 0 && pinnedWorld < Sim.WORLDS.length) return pinnedWorld;
   return Math.floor(Math.random() * Sim.WORLDS.length);
 }
 
+/**
+ * Start a new match between two players and begin the simulation loop.
+ * @param {WebSocket} a
+ * @param {WebSocket} b
+ */
 function startRoom(a, b) {
   const worldIndex = chooseWorldIndex();
   const room = { world: Sim.createWorld(worldIndex, 2), players: [a, b], timer: null, over: false };
@@ -91,6 +127,19 @@ function startRoom(a, b) {
   }, 8);
 }
 
+/**
+ * A running match between two players.
+ * @typedef {object} Room
+ * @property {object} world - Simulation state from Sim.createWorld.
+ * @property {WebSocket[]} players - The two player connections, indexed by player slot.
+ * @property {NodeJS.Timeout | null} timer - The setInterval handle for the tick loop.
+ * @property {boolean} over - True once the room has been torn down.
+ */
+
+/**
+ * Tear down a room and disconnect both players.
+ * @param {Room} room - The room to end.
+ */
 function endRoom(room) {
   if (room.over) return;
   room.over = true;
@@ -102,4 +151,7 @@ function endRoom(room) {
   }
 }
 
+/**
+ * Start the game server and log the listening URL.
+ */
 server.listen(PORT, () => console.log(`http://localhost:${PORT}`));
