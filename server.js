@@ -84,7 +84,7 @@ function startRoom(a, b) {
       acc -= Sim.STEP_MS;
       tick++;
       if (tick % 2 === 0) { // snapshots at 30 Hz
-        const msg = { type: 'state', wheels: Sim.snapshot(room.world) };
+        const msg = { type: 'state', serverTime: tick * Sim.STEP_MS, wheels: Sim.snapshot(room.world) };
         room.players.forEach((ws) => send(ws, msg));
       }
     }
