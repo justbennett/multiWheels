@@ -253,29 +253,34 @@
    */
   const r2 = (n) => Math.round(n * 100) / 100;
 
-  /**
+    /**
+   * One wheel's position, as sent to clients.
+   * @typedef {object} WheelSnapshot
+   * @property {number} x
+   * @property {number} y
+   * @property {number} angle
+   *
    * Produce a compact snapshot of wheel positions for sending to the client.
    * @param {WorldState} world
-   * @returns {{x:number, y:number, angle:number}[]}
+    * @returns {WheelSnapshot[]}
    */
   function snapshot(world) {
     return world.wheels.map((w) => ({ x: r2(w.x), y: r2(w.y), angle: r2(w.angle) }));
   }
 
-  /**
-   * Shared simulation API exposed to both the browser and Node.
-   * @type {{
-   *   W: number,
-   *   H: number,
-   *   STEP_MS: number,
-   *   WRAP_MARGIN: number,
-   *   WRAP_PERIOD: number,
-   *   WORLDS: WorldDefinition[],
-   *   createWorld: (worldIndex?: number, playerCount?: number) => WorldState,
-   *   step: (world: WorldState) => void,
-   *   snapshot: (world: WorldState) => {x:number, y:number, angle:number}[]
-   * }}
-   */
+/**
+ * The API shared by the server and the browser client.
+ * @type {object}
+ * @property {number} W - World width.
+ * @property {number} H - World height.
+ * @property {number} STEP_MS - Milliseconds per simulation tick.
+ * @property {number} WRAP_MARGIN - How far past each edge a wheel travels before wrapping.
+ * @property {number} WRAP_PERIOD - Width of the wrap-around range: W plus the margin on both sides.
+ * @property {WorldDefinition[]} WORLDS - Every available world.
+ * @property {function(number=, number=): WorldState} createWorld - Build a world from a world index and player count.
+ * @property {function(WorldState): void} step - Advance the world by one tick.
+ * @property {function(WorldState): WheelSnapshot[]} snapshot - Wheel positions for sending to clients.
+ */
   const Sim = { W, H, STEP_MS, WRAP_MARGIN, WRAP_PERIOD, WORLDS, createWorld, step, snapshot };
   if (typeof module !== 'undefined' && module.exports) module.exports = Sim;
   else root.Sim = Sim;
