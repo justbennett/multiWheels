@@ -1,7 +1,7 @@
 // Shared physics. Plain JS with no p5, so the same file runs in the browser and in Node.
 (function (root) {
   const W = 600, H = 270, GROUND = 15; // 20:9 world, like a wide phone in landscape. Every device scales this same area to fit.
-  const GRAVITY = 0.2, MOVE_ACCEL = 0.1, MAX_SPEED_X = 5, AIR_DRAG = 0.985, FLAP = 1.5;
+  const GRAVITY = 0.2, MOVE_ACCEL = 0.1, MAX_SPEED_X = 5, AIR_DRAG = 0.985, BOOST = 1.5;
   const STEP_MS = 1000 / 60; // fixed timestep: one step() = one 60 Hz tick
 
   // Wrapping: a wheel that leaves one side of the screen re-enters from the other. It lives in a
@@ -67,7 +67,7 @@
   function applyInput(w) {
     if (w.input.left)  w.vx -= MOVE_ACCEL;
     if (w.input.right) w.vx += MOVE_ACCEL;
-    if (w.input.boost)  w.vy = -FLAP;
+    if (w.input.boost)  w.vy = -BOOST;
     w.vx *= AIR_DRAG;
     w.vx = clamp(w.vx, -MAX_SPEED_X, MAX_SPEED_X);
     w.angle += (w.vx / 90) * Math.PI;

@@ -1,38 +1,50 @@
-    html, body {
-      margin: 0; height: 100%; overflow: hidden; background: #1e1e1e;
-      touch-action: none; overscroll-behavior: none;
-    }
-    canvas { display: block; }
+:root { --touched-opacity: 0.1; } /* how faint a control gets while a finger is on it */
 
-    /* On-screen buttons float over the bottom corners of the game. */
-    #controls {
-      display: none; position: fixed; left: 0; right: 0; bottom: 0;
-      justify-content: space-between; padding: 12px; gap: 12px; pointer-events: none;
-      user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
-    }
-    #controls .steer { display: flex; gap: 12px; }
-    #controls button {
-      width: min(24vh, 110px); height: min(24vh, 110px);
-      font-size: 26px; color: #fff; text-shadow: 0 0 4px #000;
-      background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 16px;
-      touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
-    }
-    #controls button.boost { width: min(36vh, 160px); }
-    #controls button.held { background: rgba(255, 255, 255, 0.5); }
+html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #1e1e1e;
+    touch-action: none; overscroll-behavior: none;
+}
+canvas { display: block; }
 
-    /* Touch screens play in landscape. In portrait, cover the game with a notice. */
-    #rotate-notice {
-      display: none; position: fixed; inset: 0; z-index: 10; background: #1e1e1e; color: #fff;
-      align-items: center; justify-content: center; text-align: center; font: 20px sans-serif;
-    }
-    @media (pointer: coarse) { #controls { display: flex; } }
-    @media (pointer: coarse) and (orientation: portrait) { #rotate-notice { display: flex; } }
-    body.show-controls #controls { display: flex; } /* ?touch in the URL: test the buttons on a desktop */
+/* Fullscreen button */
+#fullscreen-button {
+    position: fixed; top: 12px; right: 12px; z-index: 10;
+    width: 40px; height: 40px; font-size: 24px; color: #fff;
+    background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 8px;
+    touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
+}
 
-    /* Fullscreen button */
-    #fullscreen-button {
-      position: fixed; top: 12px; right: 12px; z-index: 10;
-      width: 40px; height: 40px; font-size: 24px; color: #fff;
-      background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 8px;
-      touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
-    }
+   
+#controls {
+  display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+  justify-content: flex-end; padding: 12px; gap: 12px; pointer-events: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+#controls button {
+  width: min(24vh, 90px); height: min(24vh, 90px);
+  font-size: 26px; color: #ffffffc5; text-shadow: 0 0 4px #000;
+  background: rgba(128, 128, 128, 0.35); border: 2px solid rgba(255, 255, 255, 0.6); border-radius: 16px;
+  touch-action: none; user-select: none; -webkit-user-select: none; pointer-events: auto;
+  transition: opacity 0.08s;
+}
+#controls button.held { opacity: var(--touched-opacity); }
+
+#steer-zone {
+  display: none; position: fixed; left: 0; top: 0; bottom: 0; width: 50vw; z-index: 1;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+#steer-zone .ring, #steer-zone .knob {
+  position: absolute; left: 25%; top: 78%; /* resting spot, bottom left, until a finger lands */
+  transform: translate(-50%, -50%); pointer-events: none; transition: opacity 0.08s;
+}
+#steer-zone .ring {
+  width: 130px; height: 56px; border-radius: 28px;
+  background: rgba(128, 128, 128, 0.25); border: 2px solid rgba(255, 255, 255, 0.6);
+}
+#steer-zone .knob { width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.6); }
+#steer-zone.active .ring, #steer-zone.active .knob { opacity: var(--touched-opacity); }
+
+@media (pointer: coarse) { #controls { display: flex; } #steer-zone { display: block; } }
+@media (pointer: coarse) and (orientation: portrait) { #rotate-notice { display: flex; } }
+body.show-controls #controls { display: flex; }
+body.show-controls #steer-zone { display: block; } /* ?touch in the URL: test on a desktop */
