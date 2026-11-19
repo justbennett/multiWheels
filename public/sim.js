@@ -10,7 +10,7 @@
   // ===========================================================================================
 
   // --- Gravity and speed limit ---
-  const GRAVITY = 0.2;    // Downward pull, added to the vertical speed every tick.
+  const GRAVITY = 0.175;    // Downward pull, added to the vertical speed every tick.
   const MAX_SPEED = 9;    // Top speed in any direction. Keep it below the wheel radius (10) so a fast wheel can't pass through a thin wall in a single tick.
 
   // --- Motor: the left and right keys spin the wheel ---
@@ -67,7 +67,7 @@
       walls: [
         { x1: -WRAP_MARGIN, y1: H - GROUND, x2: W + WRAP_MARGIN, y2: H - GROUND, type: 'solid' }, // floor
         { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'solid' }, // ceiling
-        { x1: W / 4, y1: H / 2,      x2: W * 3 / 4, y2: H / 2,      type: 'solid' }, // ledge
+        { x1: W / 4, y1: H / 3,      x2: W * 3 / 4, y2: H / 2,      type: 'ice' }, // ledge
       ],
       spawnPoints: [
         { x: W / 2 - 30, y: H / 2 - 30 }, { x: W / 2 + 30, y: H / 2 - 30 },
@@ -81,7 +81,7 @@
         { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'solid' }, // ceiling
         { x1: W * 0.1,   y1: H * 0.65, x2: W * 0.425, y2: H * 0.65, type: 'solid' }, // left ledge
         { x1: W * 0.575, y1: H * 0.65, x2: W * 0.9,   y2: H * 0.65, type: 'solid' }, // right ledge
-        { x1: W * 0.375, y1: H * 0.35, x2: W * 0.625, y2: H * 0.35, type: 'solid' }, // high middle ledge
+        { x1: W * 0.375, y1: H * 0.35, x2: W * 0.625, y2: H * 0.35, type: 'ice' }, // high middle ledge
       ],
       spawnPoints: [
         { x: W / 2 - 30, y: H * 0.25 }, { x: W / 2 + 30, y: H * 0.25 },
@@ -131,7 +131,7 @@
   function createWheel(id, x, y) {
     return {
       id, x, y, vx: 0, vy: 0, spin: 0, angle: 0,
-      radius: 10, restitution: 0.75,
+      radius: 10, restitution: 0.85,
       touching: false,
       boostCooldown: 0, boostQueued: false, boostWait: 0, boostWasDown: false,
       // Inputs are data. Locally they come from the keyboard, on the server from the network.
@@ -247,31 +247,34 @@
   function collideWall(w, wall) {
     const dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
     const t = clamp(((w.x - wall.x1) * dx + (w.y - wall.y1) * dy) / (dx * dx + dy * dy), 0, 1);
-    const cx = wall.x1 + t * dx, cy = wall.y1 + t * dy;
-    let nx = w.x - cx, ny = w.y - cy;
+    const cx = wall.x1 + t * dx, cy = wall.y1 + t * dy;  //cx and cy are the closest point on the wall to the wheel center
+    const overHeadFactor = cy <= w.y ? 0.4 : 1 ; // if the wall is above the wheel, false if below
+    let nx = w.x - cx, ny = w.y - cy;  // nx and ny are the vector from the closest point on the wall to the wheel center
     const d = Math.hypot(nx, ny);
     if (d > w.radius) return;
     w.touching = true;
-    if (d === 0) { nx = 0; ny = -1; } else { nx /= d; ny /= d; }
+    if (d === 0) { nx = 0; ny = -1; } else { nx /= d; ny /= d; } // nx and ny are now the unit normal vector from the wall to the wheel center
 
-    w.x = cx + nx * w.radius;
+    w.x = cx + nx * w.radius; // push the wheel out of the wall so it is just touching
     w.y = cy + ny * w.radius;
 
     // Normal direction: bounce, or just stop pressing into the wall if the impact is slow.
     const vn = w.vx * nx + w.vy * ny; // negative means moving into the wall
     if (vn >= 0) return;
-    const bounce = -vn > REST_SPEED ? WALL_BOUNCE : 0;
+    const bounce = -vn > REST_SPEED ? WALL_BOUNCE * overHeadFactor  : 0;
     const normalImpulse = -(1 + bounce) * vn;
     w.vx += nx * normalImpulse;
     w.vy += ny * normalImpulse;
 
     // Tangent direction: grip. slipSpeed is 0 when the wheel rolls without slipping.
+    // If the wall is above the wheel, decrease the friction by half
+    const surfaceCoefficient = overHeadFactor * (wall.type === 'ice' ? 0.1 : 1); // reduce friction when the wall is above the wheel
     const tangentX = -ny, tangentY = nx;
     const inertia = WHEEL_INERTIA * w.radius * w.radius;
-    const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius;
-    const gripNeeded = -slipSpeed / (1 + (w.radius * w.radius) / inertia);
+    const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius; // positive means the rim is sliding down the wall
+    const gripNeeded = -slipSpeed / (1 + (w.radius * w.radius) / inertia); // impulse needed to stop the slip in one tick
     const gripLimit = WHEEL_FRICTION * normalImpulse;
-    const frictionImpulse = clamp(gripNeeded, -gripLimit, gripLimit);
+    const  frictionImpulse = clamp(gripNeeded, -gripLimit, gripLimit) * overHeadFactor * surfaceCoefficient; // reduce grip when the wall is above the wheel
     w.vx += tangentX * frictionImpulse;
     w.vy += tangentY * frictionImpulse;
     w.spin -= (w.radius * frictionImpulse) / inertia;
