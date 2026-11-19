@@ -168,10 +168,26 @@ function draw() {
   rect(0, 0, Sim.W, Sim.H);
   pop();
 
-  for (const w of currentWalls) line(w.x1, w.y1, w.x2, w.y2);
-
-  // Each wheel is drawn once. When it wraps it slides fully off one side, is hidden by the clip
-  // while it crosses the margin, then slides in from the other side.
+  for (const w of currentWalls) {
+    
+    push();
+    switch (w.type) {
+      case 'solid': stroke(100); break;
+      case 'grip':  stroke('#07144F'); fill('#000000'); break;
+      case 'ice':   stroke('#00C8C8'); fill('#08AAAA'); break;
+      case 'fire':  stroke('#840202'); fill('#FF7300'); break;
+      default:      stroke(150); break;
+    }
+    let dy = w.y2 - w.y1;
+    let dx = w.x2 - w.x1;
+    let angle = Math.atan2(dy, dx);
+    let length = Math.sqrt(dx * dx + dy * dy);
+    translate(w.x1, w.y1);
+    rotate(angle);
+    strokeWeight(1);
+    rect(0, 0, length, 2, 0.5);
+    pop();
+  }
   if (wheels) wheels.forEach((w, i) => drawWheel(w, COLORS[i], i === myIndex));
 
   drawingContext.restore();

@@ -75,12 +75,13 @@
       ],
     },
     {
-      name: 'Two Ledges',
+      name: 'Three Ledges',
       walls: [
         { x1: -WRAP_MARGIN, y1: H - GROUND, x2: W + WRAP_MARGIN, y2: H - GROUND, type: 'solid' }, // floor
-        { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'solid' }, // ceiling
-        { x1: W * 0.1,   y1: H * 0.65, x2: W * 0.425, y2: H * 0.65, type: 'solid' }, // left ledge
-        { x1: W * 0.575, y1: H * 0.65, x2: W * 0.9,   y2: H * 0.65, type: 'solid' }, // right ledge
+        { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'fire' }, // ceiling
+        { x1: W * 0.1,   y1: H * 0.55, x2: W * 0.25, y2: H * 0.65, type: 'solid' }, // left ledge
+        { x1: W * 0.1,   y1: H * 0.55, x2: W * 0.1, y2: H * 0.65, type: 'solid' }, // verticl
+        { x1: W * 0.575, y1: H * 0.65, x2: W * 0.9,   y2: H * 0.65, type: 'grip' }, // right ledge
         { x1: W * 0.375, y1: H * 0.35, x2: W * 0.625, y2: H * 0.35, type: 'ice' }, // high middle ledge
       ],
       spawnPoints: [
@@ -266,9 +267,27 @@
     w.vx += nx * normalImpulse;
     w.vy += ny * normalImpulse;
 
-    // Tangent direction: grip. slipSpeed is 0 when the wheel rolls without slipping.
-    // If the wall is above the wheel, decrease the friction by half
-    const surfaceCoefficient = overHeadFactor * (wall.type === 'ice' ? 0.1 : 1); // reduce friction when the wall is above the wheel
+    // Friction calculation: the rim is moving relative to the wall, and the wheel can push back against it. 
+    // The friction impulse is capped by the normal impulse, so a hard landing gives more grip than a light one. 
+    // The wheel's spin is affected too, so it can be spun up or slowed down by the wall.
+    
+    // make a variable wallFriction that is determined by the wall.type, and multiply the frictionImpulse by that variable. ice = 0.1, grip = 1, solid = 0.8
+    let wallFriction;
+    switch (wall.type) {
+      case 'ice':
+        wallFriction = 0.1;
+        break;
+      case 'grip':
+        wallFriction = 1.5;
+        break;
+      case 'solid':
+        wallFriction = 1;
+        break;
+      case 'fire':
+      default:
+        wallFriction = 1;
+    }
+    const surfaceCoefficient = overHeadFactor * wallFriction; // reduce friction when the wall is above the wheel and apply the wall type friction coefficient
     const tangentX = -ny, tangentY = nx;
     const inertia = WHEEL_INERTIA * w.radius * w.radius;
     const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius; // positive means the rim is sliding down the wall

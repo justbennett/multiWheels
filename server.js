@@ -110,7 +110,7 @@ function chooseWorldIndex() {
  * @param {WebSocket} b
  */
 function startRoom(a, b) {
-  const worldIndex = chooseWorldIndex();
+  const worldIndex = 1;  //chooseWorldIndex();
   const room = { world: Sim.createWorld(worldIndex, 2), players: [a, b], timer: null, over: false };
   room.players.forEach((ws, i) => {
     ws.room = room;
