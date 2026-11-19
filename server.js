@@ -4,26 +4,11 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 const Sim = require('./public/sim.js');
 
-/**
- * The port the server listens on.
- * @type {number}
- */
 const PORT = process.env.PORT || 3000;
-/**
- * Directory containing the static browser assets.
- * @type {string}
- */
 const PUBLIC = path.join(__dirname, 'public');
-/**
- * MIME types used for serving static files.
- * @type {Record<string, string>}
- */
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MAX_PLAYERS = 4;
 
-/**
- * Create the HTTP server and serve static files from the public folder.
- * @type {http.Server}
- */
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
   const file = path.normalize(path.join(PUBLIC, urlPath === '/' ? 'index.html' : urlPath));
@@ -35,131 +20,185 @@ const server = http.createServer((req, res) => {
   });
 });
 
-/**
- * WebSocket server used for matchmaking and gameplay synchronization.
- * @type {WebSocketServer}
- */
 const wss = new WebSocketServer({ server, maxPayload: 1024 });
-/**
- * The first waiting player queued for a match.
- * @type {WebSocket | null}
- */
-let waiting = null;
 
-/**
- * Send a JSON message through a socket if it is still open.
- * @param {WebSocket} ws
- * @param {object} msg
- */
-const send = (ws, msg) => { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+const send = (ws, msg) => {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg));
+};
 
-/**
- * Handle a new client connection and either pair it with an existing waiting player or queue it.
- */
+const worldOptions = Sim.WORLDS.map((w, index) => ({ index, name: w.name }));
+
+function createLobby() {
+  return {
+    worldIndex: resolveInitialWorldIndex(),
+    players: [], // up to MAX_PLAYERS open sockets in lobby
+  };
+}
+
+function resolveInitialWorldIndex() {
+  const pinnedWorld = Number(process.env.WORLD);
+  if (Number.isInteger(pinnedWorld) && pinnedWorld >= 0 && pinnedWorld < Sim.WORLDS.length) {
+    return pinnedWorld;
+  }
+  return 0;
+}
+
+let lobby = createLobby();
+
+function broadcastLobby() {
+  const payload = {
+    type: 'lobby',
+    worldIndex: lobby.worldIndex,
+    worlds: worldOptions,
+    playerCount: lobby.players.length,
+    maxPlayers: MAX_PLAYERS,
+    hostSlot: 0,
+  };
+  lobby.players.forEach((ws, slot) => {
+    ws.slot = slot;
+    send(ws, { ...payload, you: slot, isHost: slot === 0 });
+  });
+}
+
+function launchMatch(currentLobby) {
+  const players = currentLobby.players.filter((ws) => ws.readyState === 1);
+  if (players.length === 0) return;
+
+  const worldIndex = currentLobby.worldIndex;
+  const room = {
+    world: Sim.createWorld(worldIndex, players.length),
+    players, // index i corresponds to world.wheels[i]
+    timer: null,
+    over: false,
+  };
+
+  players.forEach((ws, i) => {
+    ws.lobby = null;
+    ws.room = room;
+    ws.slot = i;
+    send(ws, {
+      type: 'start',
+      you: i,
+      playerCount: players.length,
+      world: worldIndex,
+      size: { width: Sim.W, height: Sim.H },
+    });
+  });
+
+  let last = Date.now(), acc = 0, tick = 0;
+  room.timer = setInterval(() => {
+    const now = Date.now();
+    acc = Math.min(acc + (now - last), 250);
+    last = now;
+    while (acc >= Sim.STEP_MS) {
+      Sim.step(room.world);
+      acc -= Sim.STEP_MS;
+      tick++;
+      if (tick % 2 === 0) { // 30 Hz snapshots
+        const msg = {
+          type: 'state',
+          serverTime: tick * Sim.STEP_MS,
+          wheels: Sim.snapshot(room.world),
+        };
+        for (const ws of room.players) send(ws, msg);
+      }
+    }
+  }, 8);
+}
+
+function removeFromLobby(ws) {
+  const idx = lobby.players.indexOf(ws);
+  if (idx === -1) return;
+  lobby.players.splice(idx, 1);
+  ws.lobby = null;
+  ws.slot = null;
+  broadcastLobby();
+}
+
+function handlePlayerLeaveRoom(room, ws) {
+  if (room.over) return;
+  const idx = room.players.indexOf(ws);
+  if (idx === -1) return;
+
+  room.players.splice(idx, 1);
+  ws.room = null;
+  ws.slot = null;
+
+  // Remove the departed wheel so snapshot() stays aligned with active players
+  if (room.world.wheels[idx]) {
+    room.world.wheels.splice(idx, 1);
+  }
+  // Re-index remaining sockets so ws.slot matches room.world.wheels[ws.slot]
+  room.players.forEach((p, i) => {
+    p.slot = i;
+    send(p, { type: 'player_left', leftSlot: idx, you: i, playerCount: room.players.length });
+  });
+
+  if (room.players.length === 0) {
+    room.over = true;
+    clearInterval(room.timer);
+  }
+}
+
 wss.on('connection', (ws) => {
   ws.room = null;
-  ws.index = null;
+  ws.lobby = null;
+  ws.slot = null;
 
-  if (waiting && waiting.readyState === 1) {
-    startRoom(waiting, ws);
-    waiting = null;
+  if (lobby.players.length < MAX_PLAYERS) {
+    lobby.players.push(ws);
+    ws.lobby = lobby;
+    broadcastLobby();
+
+    if (lobby.players.length === MAX_PLAYERS) {
+      const fullLobby = lobby;
+      lobby = createLobby();
+      launchMatch(fullLobby);
+    }
   } else {
-    waiting = ws;
-    send(ws, { type: 'waiting' });
+    send(ws, { type: 'full' });
+    ws.close();
   }
 
   ws.on('message', (raw) => {
-    if (!ws.room) return;
     let m;
     try { m = JSON.parse(raw); } catch { return; }
-    if (m.type === 'input') {
 
-      // Only trust booleans, and only write to this socket's own wheel.
-      const wheel = ws.room.world.wheels[ws.index];
+    // Pre-match messages
+    if (ws.lobby) {
+      if (m.type === 'select_world' && ws.slot === 0) {
+        const nextWorld = Number(m.worldIndex);
+        if (Number.isInteger(nextWorld) && nextWorld >= 0 && nextWorld < Sim.WORLDS.length) {
+          ws.lobby.worldIndex = nextWorld;
+          broadcastLobby();
+        }
+      } else if (m.type === 'start_game' && ws.slot === 0 && ws.lobby.players.length >= 1) {
+        const startingLobby = ws.lobby;
+        if (startingLobby === lobby) lobby = createLobby();
+        launchMatch(startingLobby);
+      }
+      return;
+    }
+
+    // In-match messages
+    if (!ws.room || ws.room.over) return;
+    if (m.type === 'input') {
+      const wheel = ws.room.world.wheels[ws.slot];
+      if (!wheel) return;
       const wasBoosting = wheel.input.boost;
       wheel.input = {
         left: m.left === true,
         right: m.right === true,
         boost: m.boost === true,
-        // Latch a new press so a quick tap isn't lost if its press and release arrive within the same tick.
-        // The sim clears boostPressed once it has used it.
         boostPressed: wheel.input.boostPressed || (m.boost === true && !wasBoosting),
       };
     }
   });
 
   ws.on('close', () => {
-    if (waiting === ws) waiting = null;
-    if (ws.room) endRoom(ws.room);
+    if (ws.lobby) removeFromLobby(ws);
+    if (ws.room) handlePlayerLeaveRoom(ws.room, ws);
   });
 });
 
-/**
- * Choose the world used for a room. Set WORLD=1 to pin a specific map during testing.
- * @returns {number}
- */
-function chooseWorldIndex() {
-  const pinnedWorld = Number(process.env.WORLD);
-  if (Number.isInteger(pinnedWorld) && pinnedWorld >= 0 && pinnedWorld < Sim.WORLDS.length) return pinnedWorld;
-  return Math.floor(Math.random() * Sim.WORLDS.length);
-}
-
-/**
- * Start a new match between two players and begin the simulation loop.
- * @param {WebSocket} a
- * @param {WebSocket} b
- */
-function startRoom(a, b) {
-  const worldIndex = 1;  //chooseWorldIndex();
-  const room = { world: Sim.createWorld(worldIndex, 2), players: [a, b], timer: null, over: false };
-  room.players.forEach((ws, i) => {
-    ws.room = room;
-    ws.index = i;
-    send(ws, { type: 'start', you: i, world: worldIndex, size: { width: Sim.W, height: Sim.H } });
-  });
-
-  let last = Date.now(), acc = 0, tick = 0;
-  room.timer = setInterval(() => {
-    const now = Date.now();
-    acc = Math.min(acc + (now - last), 250); // cap so a stall can't trigger a huge catch-up
-    last = now;
-    while (acc >= Sim.STEP_MS) {
-      Sim.step(room.world);
-      acc -= Sim.STEP_MS;
-      tick++;
-      if (tick % 2 === 0) { // snapshots at 30 Hz
-        const msg = { type: 'state', serverTime: tick * Sim.STEP_MS, wheels: Sim.snapshot(room.world) };
-        room.players.forEach((ws) => send(ws, msg));
-      }
-    }
-  }, 8);
-}
-
-/**
- * A running match between two players.
- * @typedef {object} Room
- * @property {object} world - Simulation state from Sim.createWorld.
- * @property {WebSocket[]} players - The two player connections, indexed by player slot.
- * @property {NodeJS.Timeout | null} timer - The setInterval handle for the tick loop.
- * @property {boolean} over - True once the room has been torn down.
- */
-
-/**
- * Tear down a room and disconnect both players.
- * @param {Room} room - The room to end.
- */
-function endRoom(room) {
-  if (room.over) return;
-  room.over = true;
-  clearInterval(room.timer);
-  for (const ws of room.players) {
-    send(ws, { type: 'opponent_left' });
-    ws.room = null;
-    ws.close();
-  }
-}
-
-/**
- * Start the game server and log the listening URL.
- */
 server.listen(PORT, () => console.log(`http://localhost:${PORT}`));

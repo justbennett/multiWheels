@@ -4,10 +4,10 @@
  */
 const INTERP_DELAY = 100; // ms. Draw the world this far in the past so there are always two snapshots to blend.
 /**
- * Player colors used for rendering the two wheels.
+ * Player colors used for rendering up to 4 wheels.
  * @const {string[]}
  */
-const COLORS = ['#4a90d9', '#e8833a'];
+const COLORS = ['#4a90d9', '#e8833a', '#38a169', '#9b59b6'];
 
 /**
  * Active WebSocket connection to the game server.
@@ -24,6 +24,11 @@ let myIndex = null;
  * @type {string}
  */
 let status = 'Connecting...';
+/**
+ * Current lobby state while waiting before the match starts, or null once in-game.
+ * @type {{ worldIndex: number, worlds: { index: number, name: string }[], playerCount: number, maxPlayers: number, isHost: boolean } | null}
+ */
+let lobbyState = null;
 /**
  * Recent network snapshots used for interpolation.
  * @type {{ t: number, wheels: { x: number, y: number, angle: number }[] }[]}
@@ -51,14 +56,102 @@ let clockOffset = null;
 const touchInput = { left: false, right: false, boost: false };
 
 /**
- * Initialize the drawing canvas and input listeners, then connect to the server.
+ * DOM container for pre-match lobby controls (world picker & start button).
+ * @type {HTMLElement | null}
+ */
+let lobbyUiEl = null;
+
+/**
+ * Initialize the drawing canvas, lobby UI, and input listeners, then connect to the server.
  */
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  setupLobbyUi();
   setupTouchControls();
   setupFullscreenButton();
   setupSteeringZone();
   connect();
+}
+
+/**
+ * Create a lightweight floating overlay for selecting the world and starting the match.
+ */
+function setupLobbyUi() {
+  lobbyUiEl = document.createElement('div');
+  lobbyUiEl.id = 'lobby-ui';
+  Object.assign(lobbyUiEl.style, {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    background: 'rgba(255, 255, 255, 0.94)',
+    color: '#111',
+    padding: '20px 24px',
+    borderRadius: '12px',
+    boxShadow: '0 8px 28px rgba(0, 0, 0, 0.35)',
+    display: 'none',
+    flexDirection: 'column',
+    gap: '12px',
+    minWidth: '260px',
+    zIndex: '20',
+    fontFamily: 'sans-serif',
+  });
+
+  const title = document.createElement('div');
+  title.id = 'lobby-players';
+  title.style.fontWeight = 'bold';
+
+  const label = document.createElement('label');
+  label.textContent = 'World: ';
+  label.htmlFor = 'world-select';
+
+  const select = document.createElement('select');
+  select.id = 'world-select';
+  Sim.WORLDS.forEach((w, idx) => {
+    const opt = document.createElement('option');
+    opt.value = String(idx);
+    opt.textContent = w.name;
+    select.appendChild(opt);
+  });
+  select.addEventListener('change', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'select_world', worldIndex: Number(select.value) }));
+  });
+
+  const startBtn = document.createElement('button');
+  startBtn.id = 'start-match-btn';
+  startBtn.textContent = 'Start Match';
+  startBtn.style.padding = '8px 14px';
+  startBtn.style.cursor = 'pointer';
+  startBtn.addEventListener('click', () => {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: 'start_game' }));
+  });
+
+  label.appendChild(select);
+  lobbyUiEl.append(title, label, startBtn);
+  document.body.appendChild(lobbyUiEl);
+}
+
+/**
+ * Sync the lobby overlay visibility and controls with `lobbyState`.
+ */
+function renderLobbyUi() {
+  if (!lobbyUiEl) return;
+  if (!lobbyState || myIndex !== null) {
+    lobbyUiEl.style.display = 'none';
+    return;
+  }
+
+  lobbyUiEl.style.display = 'flex';
+  const playersEl = document.getElementById('lobby-players');
+  const selectEl = document.getElementById('world-select');
+  const startBtn = document.getElementById('start-match-btn');
+
+  playersEl.textContent = `Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
+  selectEl.value = String(lobbyState.worldIndex);
+  selectEl.disabled = !lobbyState.isHost;
+  startBtn.style.display = lobbyState.isHost ? 'block' : 'none';
 }
 
 /**
@@ -70,9 +163,16 @@ function connect() {
 
   ws.onmessage = (e) => {
     const m = JSON.parse(e.data);
-    if (m.type === 'waiting') {
-      status = "Waiting for an opponent...Have someone else go to http://<THIS COMPUTER'S IP>:3000 to join.";
+    if (m.type === 'lobby') {
+      lobbyState = m;
+      if (Sim.WORLDS[m.worldIndex]) currentWalls = Sim.WORLDS[m.worldIndex].walls;
+      status = m.isHost
+        ? 'Select a world and press Start Match (or wait for up to 4 players).'
+        : `Waiting for host to start (${Sim.WORLDS[m.worldIndex]?.name ?? 'World'})...`;
+      renderLobbyUi();
     } else if (m.type === 'start') {
+      lobbyState = null;
+      renderLobbyUi();
       myIndex = m.you;
       status = '';
       if (Sim.WORLDS[m.world]) currentWalls = Sim.WORLDS[m.world].walls;
@@ -91,13 +191,32 @@ function connect() {
       else clockOffset += (rawOffset - clockOffset) * 0.01;                        // creep up if delay really rises
       snapshots.push({ t: m.serverTime, wheels: m.wheels });
       if (snapshots.length > 30) snapshots.shift();
+    } else if (m.type === 'player_left') {
+      myIndex = m.you;
+      snapshots = [];
+      lastSent = '';
+      status = `Player ${m.leftSlot + 1} left (${m.playerCount} remaining).`;
+      setTimeout(() => {
+        if (myIndex !== null && status.startsWith('Player ')) status = '';
+      }, 2500);
+    } else if (m.type === 'full') {
+      lobbyState = null;
+      renderLobbyUi();
+      status = 'Room is full (4/4 players). Try again shortly.';
+      myIndex = null;
     } else if (m.type === 'opponent_left') {
-      status = 'Opponent left. Refresh to find a new match.';
+      lobbyState = null;
+      renderLobbyUi();
+      status = 'Match ended. Refresh to join a new lobby.';
       myIndex = null;
     }
   };
   ws.onclose = () => {
-    if (!status.startsWith('Opponent')) status = 'Disconnected. Refresh to reconnect.';
+    lobbyState = null;
+    renderLobbyUi();
+    if (!status.startsWith('Match ended') && !status.startsWith('Room is full')) {
+      status = 'Disconnected. Refresh to reconnect.';
+    }
     myIndex = null;
   };
 }
@@ -169,7 +288,6 @@ function draw() {
   pop();
 
   for (const w of currentWalls) {
-    
     push();
     switch (w.type) {
       case 'solid': stroke(100); break;
@@ -188,14 +306,14 @@ function draw() {
     rect(0, 0, length, 2, 0.5);
     pop();
   }
-  if (wheels) wheels.forEach((w, i) => drawWheel(w, COLORS[i], i === myIndex));
+  if (wheels) wheels.forEach((w, i) => drawWheel(w, COLORS[i] || '#666', i === myIndex));
 
   drawingContext.restore();
   pop();
 
-  if (status) {
+  if (status && !lobbyState) {
     push();
-    fill(200,200,200,150);
+    fill(200, 200, 200, 150);
     rectMode(CENTER);
     noStroke(); rect(width / 2, height / 4, 1000, 60, 10);
     noStroke(); fill(0); textAlign(CENTER, CENTER); textSize(16);
@@ -237,12 +355,12 @@ function setupTouchControls() {
  * Send the player's current input to the server when it changes.
  */
 function sendInput() {
-  if (myIndex === null || ws.readyState !== WebSocket.OPEN) return;
+  if (myIndex === null || !ws || ws.readyState !== WebSocket.OPEN) return;
   const msg = JSON.stringify({
     type: 'input',
     left:  keyIsDown('KeyA') || keyIsDown('ArrowLeft') || touchInput.left,
     right: keyIsDown('KeyD') || keyIsDown('ArrowRight') || touchInput.right,
-    boost:  keyIsDown('KeyW') || keyIsDown('ArrowUp') || keyIsDown('Space') || touchInput.boost,
+    boost: keyIsDown('KeyW') || keyIsDown('ArrowUp') || keyIsDown('Space') || touchInput.boost,
   });
   if (msg !== lastSent) { ws.send(msg); lastSent = msg; }
 }
@@ -261,6 +379,7 @@ function sampleState() {
   const k = constrain((renderT - a.t) / (b.t - a.t), 0, 1); // clamped: never extrapolate
   return a.wheels.map((wa, i) => {
     const wb = b.wheels[i];
+    if (!wb) return wa;
     // x wraps around, so blend the shorter way around, which may cross the wrap.
     let deltaX = wb.x - wa.x;
     if (deltaX > Sim.WRAP_PERIOD / 2) deltaX -= Sim.WRAP_PERIOD;
