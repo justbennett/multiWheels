@@ -73,9 +73,17 @@ wss.on('connection', (ws) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
     if (m.type === 'input') {
+
       // Only trust booleans, and only write to this socket's own wheel.
-      ws.room.world.wheels[ws.index].input = {
-        left: m.left === true, right: m.right === true, boost: m.boost === true,
+      const wheel = ws.room.world.wheels[ws.index];
+      const wasBoosting = wheel.input.boost;
+      wheel.input = {
+        left: m.left === true,
+        right: m.right === true,
+        boost: m.boost === true,
+        // Latch a new press so a quick tap isn't lost if its press and release arrive within the same tick.
+        // The sim clears boostPressed once it has used it.
+        boostPressed: wheel.input.boostPressed || (m.boost === true && !wasBoosting),
       };
     }
   });

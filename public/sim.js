@@ -1,87 +1,66 @@
 // Shared physics. Plain JS with no p5, so the same file runs in the browser and in Node.
 (function (root) {
-  /**
-   * World dimensions and ground height.
-   * @const {number}
-   */
   const W = 600, H = 270, GROUND = 15; // 20:9 world, like a wide phone in landscape. Every device scales this same area to fit.
-  /**
-   * Physics tuning values for movement, gravity, and boost behavior.
-   * @const {number}
-   */
-  const GRAVITY = 0.2, MOVE_ACCEL = 0.1, MAX_SPEED_X = 5, AIR_DRAG = 0.985, BOOST = 1.5;
-  /**
-   * Fixed simulation timestep in milliseconds: one step() call equals one 60 Hz tick.
-   * @const {number}
-   */
-  const STEP_MS = 1000 / 60;
+  const STEP_MS = 1000 / 60; // fixed timestep: one step() = one 60 Hz tick
 
-  /**
-   * Extra off-screen space used so wheels can wrap cleanly without being visible mid-transition.
-   * The wheel remains hidden for a moment before reappearing on the other side.
-   * @const {number}
-   */
+  // ===========================================================================================
+  // TUNING: every number that controls how the wheel feels lives in this block.
+  // Distances are in world pixels, speeds in pixels per tick (1 tick = 1/60 s, so 1 px/tick = 60 px/s),
+  // and spins in radians per tick. Change one value at a time and play.
+  // ===========================================================================================
+
+  // --- Gravity and speed limit ---
+  const GRAVITY = 0.2;    // Downward pull, added to the vertical speed every tick.
+  const MAX_SPEED = 9;    // Top speed in any direction. Keep it below the wheel radius (10) so a fast wheel can't pass through a thin wall in a single tick.
+
+  // --- Motor: the left and right keys spin the wheel ---
+  const SPIN_ACCEL = 0.05;  // How quickly a held key speeds up the spin. Higher = punchier take-off, but the wheel can skid if it exceeds what the grip allows.
+  const MAX_SPIN = 0.5;     // Spin limit. Top rolling speed is MAX_SPIN x radius (0.5 x 10 = 5 px/tick).
+  const SPIN_DRAG = 0.97;   // Each tick the spin keeps this fraction of itself. Lower = the wheel stops spinning sooner when you let go of the keys. 1 = never slows on its own.
+
+  // --- Grip: how the rim interacts with walls ---
+  const WHEEL_FRICTION = 0.8; // Grip. 0 = ice, 1 = sticky rubber. Caps how hard the rim can push against a wall, so it limits both traction and climbing.
+  const WHEEL_INERTIA = 0.5;  // How the wheel's mass is spread. 0.5 = solid disc (spins up easily), 1 = hollow hoop (slower to start and to stop).
+  const WALL_BOUNCE = 0.35;    // How bouncy walls are. 0 = dead landing, 1 = perfect bounce. Low values give the wheel more grip after a landing.
+  const REST_SPEED = 0.5;     // Impacts slower than this don't bounce at all, so a wheel at rest doesn't vibrate on a surface.
+
+  // --- Air ---
+  const AIR_DRAG = 0.975;     // Each tick the sideways speed keeps this fraction of itself. This is what slows a coasting wheel and a falling one. 1 = no air resistance.
+  const AIR_SPIN_PUSH = 0.15; // While airborne, a spinning wheel nudges itself sideways by (spin x this) each tick. Keep it small; 0 = spin has no effect in the air.
+  const STOP_SPEED = 0.01;    // A wheel with no key held that is moving slower than this (px/tick) while touching a surface counts as stopped, so it really stops instead of creeping.
+
+  // --- Boost: a thruster pulse that fires once per press ---
+  const BOOST_STRENGTH = 3.5;        // Speed added by one pulse (px/tick). Straight up with gravity 0.2 lifts the wheel about 35 px.
+  const BOOST_COOLDOWN_TICKS = 15; // Minimum ticks between pulses. 60 ticks = 1 second, so 15 = 4 boosts per second. Raise it to slow tapping down.
+  const BOOST_BUFFER_TICKS = 6;    // A press made up to this many ticks before the cooldown ends is remembered and fires the moment it ends. 0 = a press during cooldown is ignored.
+
+  // Wrapping: a wheel that leaves one side of the screen re-enters from the other. It lives in a
+  // range WRAP_MARGIN wider than the screen on each side, so it is fully off-screen (hidden) for a
+  // moment before it reappears. WRAP_MARGIN must be at least the wheel radius (10), or the wheel
+  // would still be visible when it jumps. A bigger margin means a longer time out of sight.
   const WRAP_MARGIN = 20;
-  /**
-   * Total horizontal span used when wrapping around the world.
-   * @const {number}
-   */
   const WRAP_PERIOD = W + 2 * WRAP_MARGIN;
 
   /**
-   * @typedef {Object} Wall
-   * @property {number} x1
-   * @property {number} y1
-   * @property {number} x2
-   * @property {number} y2
-   * @property {string} type
+   * A straight wall segment.
+   * @typedef {object} Wall
+   * @property {number} x1 - Start x.
+   * @property {number} y1 - Start y.
+   * @property {number} x2 - End x.
+   * @property {number} y2 - End y.
+   * @property {string} type - Kind of wall, for example "solid".
    */
 
   /**
-   * @typedef {Object} WheelInput
-   * @property {boolean} left
-   * @property {boolean} right
-   * @property {boolean} boost
+   * A map: its walls and one spawn point per player slot.
+   * @typedef {object} WorldDefinition
+   * @property {string} name - Display name.
+   * @property {Wall[]} walls - The walls in this world.
+   * @property {object[]} spawnPoints - Objects with x and y, one per player slot.
    */
 
-  /**
-   * @typedef {Object} Wheel
-   * @property {number} id
-   * @property {number} x
-   * @property {number} y
-   * @property {number} vx
-   * @property {number} vy
-   * @property {number} angle
-   * @property {number} radius
-   * @property {number} restitution
-   * @property {WheelInput} input
-   */
-
-  /**
-   * @typedef {Object} SpawnPoint
-   * @property {number} x
-   * @property {number} y
-   */
-
-  /**
-   * @typedef {Object} WorldDefinition
-   * @property {string} name
-   * @property {Wall[]} walls
-   * @property {SpawnPoint[]} spawnPoints
-   */
-
-  /**
-   * @typedef {Object} WorldState
-   * @property {number} worldIndex
-   * @property {Wall[]} walls
-   * @property {Wheel[]} wheels
-   */
-
-  /**
-   * A world is plain data: walls plus one spawn point per player slot (up to 4).
-   * Every wall has a type so hazards and other kinds can be added later.
-   * @type {WorldDefinition[]}
-   */
+  // A world is plain data: walls plus one spawn point per player slot (up to 4).
+  // Every wall has a type so hazards and other kinds can be added later.
   const WORLDS = [
     {
       name: 'Ledge',
@@ -111,35 +90,67 @@
     },
   ];
 
-  /**
-   * Clamp a value to the inclusive range [lo, hi].
-   * @param {number} v
-   * @param {number} lo
-   * @param {number} hi
-   * @returns {number}
-   */
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   /**
-   * Create a wheel entity at a spawn point.
-   * @param {number} id
-   * @param {number} x
-   * @param {number} y
+   * What a player is asking for right now. Filled in from the keyboard locally, or from the network on the server.
+   * @typedef {object} WheelInput
+   * @property {boolean} left - Spin counterclockwise (drive left).
+   * @property {boolean} right - Spin clockwise (drive right).
+   * @property {boolean} boost - True while the boost control is held down.
+   * @property {boolean} boostPressed - A press the server noticed, kept until the sim uses it so a quick tap is never lost.
+   */
+
+  /**
+   * One player's wheel.
+   * @typedef {object} Wheel
+   * @property {number} id - Player slot.
+   * @property {number} x - Center x.
+   * @property {number} y - Center y.
+   * @property {number} vx - Horizontal speed in px per tick.
+   * @property {number} vy - Vertical speed in px per tick.
+   * @property {number} spin - Spin in radians per tick. Positive is clockwise, which rolls the wheel right.
+   * @property {number} angle - Rotation in radians, for drawing.
+   * @property {number} radius - Wheel radius.
+   * @property {number} restitution - Bounciness in wheel-against-wheel hits.
+   * @property {boolean} touching - True if the wheel touched a wall during the last tick.
+   * @property {number} boostCooldown - Ticks until the next boost may fire.
+   * @property {boolean} boostQueued - True if a press is waiting for the cooldown to end.
+   * @property {number} boostWait - Ticks a queued press will keep waiting.
+   * @property {boolean} boostWasDown - Whether boost was held on the previous tick.
+   * @property {WheelInput} input - The current controls.
+   */
+
+  /**
+   * Make a wheel at rest.
+   * @param {number} id - Player slot.
+   * @param {number} x - Starting x.
+   * @param {number} y - Starting y.
    * @returns {Wheel}
    */
   function createWheel(id, x, y) {
     return {
-      id, x, y, vx: 0, vy: 0, angle: 0,
+      id, x, y, vx: 0, vy: 0, spin: 0, angle: 0,
       radius: 10, restitution: 0.75,
+      touching: false,
+      boostCooldown: 0, boostQueued: false, boostWait: 0, boostWasDown: false,
       // Inputs are data. Locally they come from the keyboard, on the server from the network.
-      input: { left: false, right: false, boost: false },
+      input: { left: false, right: false, boost: false, boostPressed: false },
     };
   }
 
   /**
-   * Create a world state for a selected map and player count.
-   * @param {number} [worldIndex=0] - Index into WORLDS.
-   * @param {number} [playerCount=2] - Number of wheels to spawn, up to four.
+   * The state of one match.
+   * @typedef {object} WorldState
+   * @property {number} worldIndex - Which entry of WORLDS this is.
+   * @property {Wall[]} walls - The walls in play.
+   * @property {Wheel[]} wheels - One wheel per player.
+   */
+
+  /**
+   * Build a world. worldIndex picks an entry from WORLDS, and playerCount is how many wheels to create (1 to 4).
+   * @param {number} [worldIndex=0] - Which map to use.
+   * @param {number} [playerCount=2] - How many wheels to create.
    * @returns {WorldState}
    */
   function createWorld(worldIndex = 0, playerCount = 2) {
@@ -153,35 +164,85 @@
   }
 
   /**
-   * Apply the current input to a wheel's motion and rotation for one tick.
-   * @param {Wheel} w
+   * Fire a boost pulse when one is due. A press fires at once if the cooldown is over, and otherwise
+   * waits briefly (BOOST_BUFFER_TICKS) so a tap just before the cooldown ends isn't lost.
+   *  {number} steer - -1 for left, 1 for right, 0 for neither <-was removed, now just straight up boost
+   * @param {Wheel} w - The wheel.
    */
-  function applyInput(w) {
-    if (w.input.left)  w.vx -= MOVE_ACCEL;
-    if (w.input.right) w.vx += MOVE_ACCEL;
-    if (w.input.boost)  w.vy = -BOOST;
-    w.vx *= AIR_DRAG;
-    w.vx = clamp(w.vx, -MAX_SPEED_X, MAX_SPEED_X);
-    w.angle += (w.vx / 90) * Math.PI;
+  function updateBoost(w) {
+    // A press is either a fresh up-to-down change, or one the server latched in boostPressed.
+    const pressed = w.input.boostPressed || (w.input.boost && !w.boostWasDown);
+    w.input.boostPressed = false;
+    w.boostWasDown = w.input.boost;
+
+    if (pressed) { w.boostQueued = true; w.boostWait = BOOST_BUFFER_TICKS; }
+    if (w.boostCooldown > 0) w.boostCooldown--;
+    if (!w.boostQueued) return;
+
+    if (w.boostCooldown === 0) {
+      // Straight up with no direction held, otherwise 45 degrees up and toward the held side.
+      //const sidewaysShare = steer * Math.SQRT1_2;
+      //const upwardShare = steer === 0 ? 1 : Math.SQRT1_2;
+      //w.vx += sidewaysShare * BOOST_STRENGTH;
+      //w.vy -= upwardShare * BOOST_STRENGTH; test without 45 degree boost 
+      w.vy -= BOOST_STRENGTH;
+      w.boostCooldown = BOOST_COOLDOWN_TICKS;
+      w.boostQueued = false;
+    } else if (w.boostWait-- <= 0) {
+      w.boostQueued = false; // waited too long, drop the press
+    }
   }
 
   /**
-   * Advance a wheel forward through one physics tick using gravity and wraparound.
-   * @param {Wheel} w
+   * Apply the player's controls and the air for one tick: motor, spin drag, air drag and boost.
+   * @param {Wheel} w - The wheel.
+   */
+  function applyInput(w) {
+    const steer = (w.input.right ? 1 : 0) - (w.input.left ? 1 : 0);
+
+    // Motor and spin drag. With no key held the spin simply bleeds away.
+    w.spin = clamp((w.spin + steer * SPIN_ACCEL) * SPIN_DRAG, -MAX_SPIN, MAX_SPIN);
+
+    // In the air a spinning wheel nudges itself sideways a little. Air resistance slows sideways speed everywhere.
+    if (!w.touching) w.vx += w.spin * AIR_SPIN_PUSH;
+    w.vx *= AIR_DRAG;
+
+    // A wheel with no key held that is barely moving on a surface comes to a complete stop.
+    if (steer === 0 && w.touching && Math.abs(w.vx) < STOP_SPEED && Math.abs(w.spin) * w.radius < STOP_SPEED) {
+      w.vx = 0;
+      w.spin = 0;
+    }
+
+    updateBoost(w);
+  }
+
+  /**
+   * Move a wheel for one tick: gravity, speed limit, position, rotation and screen wrap.
+   * @param {Wheel} w - The wheel.
    */
   function integrate(w) {
     w.vy += GRAVITY;
+
+    const speed = Math.hypot(w.vx, w.vy);
+    if (speed > MAX_SPEED) {
+      w.vx *= MAX_SPEED / speed;
+      w.vy *= MAX_SPEED / speed;
+    }
+
     w.x += w.vx;
     w.y += w.vy;
+    w.angle += w.spin;
     // Wrap through the hidden margin. Both ends of the jump are off-screen, so it can't be seen.
     if (w.x < -WRAP_MARGIN) w.x += WRAP_PERIOD;
     if (w.x >= W + WRAP_MARGIN) w.x -= WRAP_PERIOD;
   }
 
   /**
-   * Resolve a collision between a wheel and a wall segment.
-   * @param {Wheel} w
-   * @param {Wall} wall
+   * Push a wheel out of a wall it overlaps, bounce it, and let the rim grip the wall. Grip works
+   * on the difference between how fast the rim moves and how fast the wall slides past it, and
+   * it changes both the wheel's velocity and its spin.
+   * @param {Wheel} w - The wheel.
+   * @param {Wall} wall - The wall to test against.
    */
   function collideWall(w, wall) {
     const dx = wall.x2 - wall.x1, dy = wall.y2 - wall.y1;
@@ -190,25 +251,36 @@
     let nx = w.x - cx, ny = w.y - cy;
     const d = Math.hypot(nx, ny);
     if (d > w.radius) return;
+    w.touching = true;
     if (d === 0) { nx = 0; ny = -1; } else { nx /= d; ny /= d; }
 
     w.x = cx + nx * w.radius;
     w.y = cy + ny * w.radius;
 
-    const vn = w.vx * nx + w.vy * ny;
-    if (vn < 0) {
-      const j = (1 + w.restitution) * vn;
-      w.vx -= nx * j;
-      w.vy -= ny * j;
-    }
-    if (Math.abs(w.vy) < 0.5 && ny < -0.9) w.vy = 0;
-    if (ny < -0.98) w.vx *= 0.98;
+    // Normal direction: bounce, or just stop pressing into the wall if the impact is slow.
+    const vn = w.vx * nx + w.vy * ny; // negative means moving into the wall
+    if (vn >= 0) return;
+    const bounce = -vn > REST_SPEED ? WALL_BOUNCE : 0;
+    const normalImpulse = -(1 + bounce) * vn;
+    w.vx += nx * normalImpulse;
+    w.vy += ny * normalImpulse;
+
+    // Tangent direction: grip. slipSpeed is 0 when the wheel rolls without slipping.
+    const tangentX = -ny, tangentY = nx;
+    const inertia = WHEEL_INERTIA * w.radius * w.radius;
+    const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius;
+    const gripNeeded = -slipSpeed / (1 + (w.radius * w.radius) / inertia);
+    const gripLimit = WHEEL_FRICTION * normalImpulse;
+    const frictionImpulse = clamp(gripNeeded, -gripLimit, gripLimit);
+    w.vx += tangentX * frictionImpulse;
+    w.vy += tangentY * frictionImpulse;
+    w.spin -= (w.radius * frictionImpulse) / inertia;
   }
 
   /**
-   * Resolve a collision between two wheels, taking wraparound into account.
-   * @param {Wheel} a
-   * @param {Wheel} b
+   * Bounce two overlapping wheels off each other.
+   * @param {Wheel} a - One wheel.
+   * @param {Wheel} b - The other wheel.
    */
   function collideWheels(a, b) {
     let dx = b.x - a.x;
@@ -236,51 +308,51 @@
 
   /**
    * Advance the world by exactly one fixed tick.
-   * @param {WorldState} world
+   * @param {WorldState} world - The world to advance.
    */
   function step(world) {
     for (const w of world.wheels) { applyInput(w); integrate(w); }
-    for (const w of world.wheels) for (const wall of world.walls) collideWall(w, wall);
+    for (const w of world.wheels) {
+      w.touching = false; // collideWall sets it again if the wheel is in contact this tick
+      for (const wall of world.walls) collideWall(w, wall);
+    }
     for (let i = 0; i < world.wheels.length; i++)
       for (let j = i + 1; j < world.wheels.length; j++)
         collideWheels(world.wheels[i], world.wheels[j]);
   }
 
-  /**
-   * Round a number to a readable precision for network snapshots.
-   * @param {number} n
-   * @returns {number}
-   */
   const r2 = (n) => Math.round(n * 100) / 100;
 
-    /**
+  /**
    * One wheel's position, as sent to clients.
    * @typedef {object} WheelSnapshot
-   * @property {number} x
-   * @property {number} y
-   * @property {number} angle
-   *
-   * Produce a compact snapshot of wheel positions for sending to the client.
-   * @param {WorldState} world
-    * @returns {WheelSnapshot[]}
+   * @property {number} x - Center x.
+   * @property {number} y - Center y.
+   * @property {number} angle - Rotation in radians.
+   */
+
+  /**
+   * Wheel positions and rotations, ready to send to clients.
+   * @param {WorldState} world - The world to read.
+   * @returns {WheelSnapshot[]}
    */
   function snapshot(world) {
     return world.wheels.map((w) => ({ x: r2(w.x), y: r2(w.y), angle: r2(w.angle) }));
   }
 
-/**
- * The API shared by the server and the browser client.
- * @type {object}
- * @property {number} W - World width.
- * @property {number} H - World height.
- * @property {number} STEP_MS - Milliseconds per simulation tick.
- * @property {number} WRAP_MARGIN - How far past each edge a wheel travels before wrapping.
- * @property {number} WRAP_PERIOD - Width of the wrap-around range: W plus the margin on both sides.
- * @property {WorldDefinition[]} WORLDS - Every available world.
- * @property {function(number=, number=): WorldState} createWorld - Build a world from a world index and player count.
- * @property {function(WorldState): void} step - Advance the world by one tick.
- * @property {function(WorldState): WheelSnapshot[]} snapshot - Wheel positions for sending to clients.
- */
+  /**
+   * The API shared by the server and the browser client.
+   * @type {object}
+   * @property {number} W - World width.
+   * @property {number} H - World height.
+   * @property {number} STEP_MS - Milliseconds per simulation tick.
+   * @property {number} WRAP_MARGIN - How far past each edge a wheel travels before wrapping.
+   * @property {number} WRAP_PERIOD - Width of the wrap-around range: W plus the margin on both sides.
+   * @property {WorldDefinition[]} WORLDS - Every available world.
+   * @property {function(number=, number=): WorldState} createWorld - Build a world from a world index and player count.
+   * @property {function(WorldState): void} step - Advance the world by one tick.
+   * @property {function(WorldState): WheelSnapshot[]} snapshot - Wheel positions for sending to clients.
+   */
   const Sim = { W, H, STEP_MS, WRAP_MARGIN, WRAP_PERIOD, WORLDS, createWorld, step, snapshot };
   if (typeof module !== 'undefined' && module.exports) module.exports = Sim;
   else root.Sim = Sim;
