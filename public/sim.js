@@ -11,7 +11,7 @@
 
   // --- Gravity and speed limit ---
   const GRAVITY = 0.175;    // Downward pull, added to the vertical speed every tick (0.175 px/tick per tick).
-  const MAX_SPEED = 9;      // Top speed in any direction. Keep it below the wheel radius (10) so a fast wheel can't pass through a thin wall in a single tick.
+  const MAX_SPEED = 10;      // Top speed in any direction. Keep it below the wheel radius (10) so a fast wheel can't pass through a thin wall in a single tick.
 
   // --- Motor: the left and right keys spin the wheel ---
   const SPIN_ACCEL = 0.05;  // How quickly a held key speeds up the spin. Higher = punchier take-off, but the wheel can skid if it exceeds what the grip allows.
