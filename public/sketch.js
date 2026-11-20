@@ -106,17 +106,17 @@ function setupLobbyUi() {
   label.textContent = 'World: ';
   label.htmlFor = 'world-select';
 
-  const select = document.createElement('select');
-  select.id = 'world-select';
+  const selector = document.createElement('select');
+  selector.id = 'world-select';
   Sim.WORLDS.forEach((w, idx) => {
     const opt = document.createElement('option');
     opt.value = String(idx);
     opt.textContent = w.name;
-    select.appendChild(opt);
+    selector.appendChild(opt);
   });
-  select.addEventListener('change', () => {
+  selector.addEventListener('change', () => {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: 'select_world', worldIndex: Number(select.value) }));
+    ws.send(JSON.stringify({ type: 'select_world', worldIndex: Number(selector.value) }));
   });
 
   const startBtn = document.createElement('button');
@@ -129,7 +129,7 @@ function setupLobbyUi() {
     ws.send(JSON.stringify({ type: 'start_game' }));
   });
 
-  label.appendChild(select);
+  label.appendChild(selector);
   lobbyUiEl.append(title, label, startBtn);
   document.body.appendChild(lobbyUiEl);
 }
@@ -146,12 +146,12 @@ function renderLobbyUi() {
 
   lobbyUiEl.style.display = 'flex';
   const playersEl = document.getElementById('lobby-players');
-  const selectEl = document.getElementById('world-select');
+  const selectorEl = document.getElementById('world-select');
   const startBtn = document.getElementById('start-match-btn');
 
   playersEl.textContent = `Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
-  selectEl.value = String(lobbyState.worldIndex);
-  selectEl.disabled = !lobbyState.isHost;
+  selectorEl.value = String(lobbyState.worldIndex);
+  selectorEl.disabled = !lobbyState.isHost;
   startBtn.style.display = lobbyState.isHost ? 'block' : 'none';
 }
 
@@ -204,9 +204,6 @@ function connect() {
       snapshots.push({ t: m.serverTime, wheels: m.wheels });
       if (snapshots.length > 30) snapshots.shift();
     } else if (m.type === 'player_left') {
-      myIndex = m.you;
-      snapshots = [];
-      lastSent = '';
       status = `Player ${m.leftSlot + 1} left (${m.playerCount} remaining).`;
       setTimeout(() => {
         if (myIndex !== null && status.startsWith('Player ')) status = '';
@@ -281,9 +278,10 @@ function draw() {
   const offsetY = (height - Sim.H * zoom) / 2;
 
   sendInput();
-  if (myIndex !== null && countdownText === '' && ws && ws.readyState === WebSocket.OPEN) {
-    sendInput();
-  }
+  //if (myIndex !== null && ws && ws.readyState === WebSocket.OPEN) {
+   // sendInput();
+ // }
+ 
   const canSample = myIndex !== null && ws && ws.readyState === WebSocket.OPEN;
   const wheels = canSample ? sampleState() : null;
 
@@ -311,6 +309,7 @@ function draw() {
       case 'grip':  stroke('#07144F'); fill('#000000'); break;
       case 'ice':   stroke('#00C8C8'); fill('#08AAAA'); break;
       case 'fire':  stroke('#840202'); fill('#FF7300'); break;
+      case 'rubber': stroke('#0A4D00'); fill('#0E5E01'); break;
       default:      stroke(150); break;
     }
     let dy = w.y2 - w.y1;
@@ -323,7 +322,9 @@ function draw() {
     rect(0, 0, length, 2, 0.5);
     pop();
   }
-  if (wheels) wheels.forEach((w, i) => drawWheel(w, COLORS[i] || '#666', i === myIndex));
+  if (wheels) wheels.forEach((w, i) => {
+    if (w && w.active !== false) drawWheel(w, COLORS[i] || '#666', i === myIndex);
+  });
 
   drawingContext.restore();
   pop();
@@ -396,7 +397,7 @@ function sendInput() {
 
 /**
  * Blend the two snapshots that surround the current render time.
- * @returns {{ x: number, y: number, angle: number }[] | null}
+ * @returns {{ x: number, y: number, angle: number, active: boolean }[] | null}
  */
 function sampleState() {
   if (snapshots.length === 0 || clockOffset === null) return null;
@@ -409,6 +410,7 @@ function sampleState() {
   return a.wheels.map((wa, i) => {
     const wb = b.wheels[i];
     if (!wb) return wa;
+    const isActive = wa.active !== false && wb.active !== false;
     // x wraps around, so blend the shorter way around, which may cross the wrap.
     let deltaX = wb.x - wa.x;
     if (deltaX > Sim.WRAP_PERIOD / 2) deltaX -= Sim.WRAP_PERIOD;
@@ -416,13 +418,13 @@ function sampleState() {
     let blendedX = wa.x + deltaX * k;
     if (blendedX < -Sim.WRAP_MARGIN) blendedX += Sim.WRAP_PERIOD;
     if (blendedX >= Sim.W + Sim.WRAP_MARGIN) blendedX -= Sim.WRAP_PERIOD;
-    return { x: blendedX, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k) };
+    return { x: blendedX, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k), active: isActive };
   });
 }
 
 /**
  * Draw a single wheel including its facing marker and self-label.
- * @param {{ x: number, y: number, angle: number }} w
+ * @param {{ x: number, y: number, angle: number, active: boolean }} w
  * @param {string} col
  * @param {boolean} isMe
  */

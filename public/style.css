@@ -44,6 +44,33 @@ canvas { display: block; }
 #steer-zone .knob { width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, 0.6); }
 #steer-zone.active .ring, #steer-zone.active .knob { opacity: var(--touched-opacity); }
 
+#lobby-ui {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.94);
+  color: #111;
+  padding: 20px 24px;
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  display: none;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 260px;
+  z-index: 20;
+  font-family: sans-serif;
+}
+
+#lobby-players {
+  font-weight: bold;
+}
+
+#start-match-btn {
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
 @media (pointer: coarse) { #controls { display: flex; } #steer-zone { display: block; } }
 @media (pointer: coarse) and (orientation: portrait) { #rotate-notice { display: flex; } }
 body.show-controls #controls { display: flex; }
