@@ -256,14 +256,14 @@
     w.vx += nx * normalImpulse;
     w.vy += ny * normalImpulse;
 
-    const wallFriction = SURFACE_GRIP[wall.type] ?? 1;
-    const surfaceCoefficient = overHeadFactor * wallFriction;
+    const wallFriction = SURFACE_GRIP[wall.type] ?? 1;  
+    const surfaceCoefficient = overHeadFactor * wallFriction;  //apply wall friction and overhead factor to the grip limit
     const tangentX = -ny, tangentY = nx;
     const inertia = WHEEL_INERTIA * w.radius * w.radius;
-    const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius;
-    const gripNeeded = -slipSpeed / (1 + (w.radius * w.radius) / inertia);
-    const gripLimit = WHEEL_FRICTION * normalImpulse;
-    const frictionImpulse = clamp(gripNeeded, -gripLimit, gripLimit) * overHeadFactor * surfaceCoefficient;
+    const slipSpeed = w.vx * tangentX + w.vy * tangentY - w.spin * w.radius;  // relative speed of the rim along the wall
+    const gripNeeded = -slipSpeed / (1 + (w.radius * w.radius) / inertia);    // impulse needed to stop the slip
+    const gripLimit = WHEEL_FRICTION * normalImpulse;                         // maximum impulse the rim can apply to the wall
+    const frictionImpulse = clamp(gripNeeded, -gripLimit, gripLimit) * overHeadFactor * surfaceCoefficient;  //
     w.vx += tangentX * frictionImpulse;
     w.vy += tangentY * frictionImpulse;
     w.spin -= (w.radius * frictionImpulse) / inertia;
@@ -323,11 +323,6 @@
       world.wheels[0].isKing = true;
     }
     
-    for (const w of world.wheels) {
-      if (!w.active) continue;
-      applyInput(w);
-      integrate(w);
-    }
     for (const w of world.wheels) {
       if (!w.active) continue;
       w.touching = false;
