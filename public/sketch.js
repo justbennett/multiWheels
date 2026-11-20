@@ -61,6 +61,7 @@ const touchInput = { left: false, right: false, boost: false };
  */
 let lobbyUiEl = null;
 
+let countdownText = '';
 /**
  * Initialize the drawing canvas, lobby UI, and input listeners, then connect to the server.
  */
@@ -154,6 +155,7 @@ function renderLobbyUi() {
   startBtn.style.display = lobbyState.isHost ? 'block' : 'none';
 }
 
+let goTimer = null;
 /**
  * Open a WebSocket connection to the game server and route gameplay messages.
  */
@@ -170,20 +172,30 @@ function connect() {
         ? 'Select a world and press Start Match (or wait for up to 4 players).'
         : `Waiting for host to start (${Sim.WORLDS[m.worldIndex]?.name ?? 'World'})...`;
       renderLobbyUi();
+    
     } else if (m.type === 'start') {
       lobbyState = null;
       renderLobbyUi();
       myIndex = m.you;
       status = '';
       if (Sim.WORLDS[m.world]) currentWalls = Sim.WORLDS[m.world].walls;
-      // Node loads sim.js once at startup, so an old server process keeps running old physics
-      // after the files change. An old server sends no world or size, which gives it away.
       const sizeMatches = m.size && m.size.width === Sim.W && m.size.height === Sim.H;
       if (m.world === undefined || !sizeMatches) {
         status = 'Server and page are out of sync. Restart the server, then refresh.';
       }
       snapshots = [];
       lastSent = '';
+      if (goTimer) { clearTimeout(goTimer); goTimer = null; }
+      countdownText = m.countdownMs > 0 ? String(Math.ceil(m.countdownMs / 1000)) : '';
+    } else if (m.type === 'countdown') {
+      countdownText = String(m.seconds);
+    } else if (m.type === 'go') {
+      countdownText = 'GO!';
+      if (goTimer) clearTimeout(goTimer);
+      goTimer = setTimeout(() => {
+        countdownText = '';
+        goTimer = null;
+      }, 400);
     } else if (m.type === 'state') {
       const arrivalTime = performance.now();
       const rawOffset = arrivalTime - m.serverTime; // network delay plus the gap between the two clocks
@@ -269,7 +281,11 @@ function draw() {
   const offsetY = (height - Sim.H * zoom) / 2;
 
   sendInput();
-  const wheels = sampleState();
+  if (myIndex !== null && countdownText === '' && ws && ws.readyState === WebSocket.OPEN) {
+    sendInput();
+  }
+  const canSample = myIndex !== null && ws && ws.readyState === WebSocket.OPEN;
+  const wheels = canSample ? sampleState() : null;
 
   push();
   translate(offsetX, offsetY);
@@ -286,6 +302,7 @@ function draw() {
   fill(220);
   rect(0, 0, Sim.W, Sim.H);
   pop();
+  
 
   for (const w of currentWalls) {
     push();
@@ -310,6 +327,18 @@ function draw() {
 
   drawingContext.restore();
   pop();
+  if (countdownText && !lobbyState) {
+    push();
+    fill(0, 0, 0, 140);
+    noStroke();
+    rectMode(CENTER);
+    rect(width / 2, height / 2, 180, 110, 16);
+    fill(255);
+    textAlign(CENTER, CENTER);
+    textSize(56);
+    text(countdownText, width / 2, height / 2);
+    pop();
+  }
 
   if (status && !lobbyState) {
     push();
@@ -411,7 +440,7 @@ function drawWheel(w, col, isMe) {
     rotate(QUARTER_PI);
   }
   pop();
-  if (isMe) { noStroke(); fill(0); textAlign(CENTER); textSize(10); text('YOU', w.x, w.y - 16); stroke(0); }
+  if (isMe) { noStroke(); fill(col); textAlign(CENTER); textSize(10); text('▼', w.x, w.y - 16); stroke(0); }
 }
 
 /**

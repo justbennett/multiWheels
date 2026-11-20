@@ -12,7 +12,7 @@ const MAX_PLAYERS = 4;
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
   const file = path.normalize(path.join(PUBLIC, urlPath === '/' ? 'index.html' : urlPath));
-  if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
+  if (!file.startsWith(PUBLIC + path.sep)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream' });
@@ -59,6 +59,7 @@ function broadcastLobby() {
     send(ws, { ...payload, you: slot, isHost: slot === 0 });
   });
 }
+const COUNTDOWN_MS = 3000;
 
 function launchMatch(currentLobby) {
   const players = currentLobby.players.filter((ws) => ws.readyState === 1);
@@ -70,6 +71,9 @@ function launchMatch(currentLobby) {
     players, // index i corresponds to world.wheels[i]
     timer: null,
     over: false,
+    started: false,
+    countdownMs: COUNTDOWN_MS,
+    lastShownSec: Math.ceil(COUNTDOWN_MS / 1000),
   };
 
   players.forEach((ws, i) => {
@@ -82,14 +86,48 @@ function launchMatch(currentLobby) {
       playerCount: players.length,
       world: worldIndex,
       size: { width: Sim.W, height: Sim.H },
+      countdownMs: room.countdownMs,
     });
   });
 
   let last = Date.now(), acc = 0, tick = 0;
   room.timer = setInterval(() => {
     const now = Date.now();
-    acc = Math.min(acc + (now - last), 250);
+    const elapsed = Math.min(now - last, 250);
     last = now;
+
+    if (!room.started) {
+      room.countdownMs = Math.max(0, room.countdownMs - elapsed);
+      const shownSec = Math.ceil(room.countdownMs / 1000);
+      if (shownSec !== room.lastShownSec && shownSec > 0) {
+        room.lastShownSec = shownSec;
+        for (const ws of room.players) {
+          send(ws, { type: 'countdown', seconds: shownSec, remainingMs: room.countdownMs });
+        }
+      }
+
+      if (room.countdownMs <= 0) {
+        room.started = true;
+        acc = 0;
+        for (const ws of room.players) {
+          send(ws, { type: 'go' });
+        }
+      }
+
+      // Send initial wheel positions so clients see wheels parked at spawn points during countdown
+      if (tick++ % 15 === 0) {
+        const msg = {
+          type: 'state',
+          serverTime: 0,
+          wheels: Sim.snapshot(room.world),
+          countdownMs: room.countdownMs,
+        };
+        for (const ws of room.players) send(ws, msg);
+      }
+      return;
+    }
+
+    acc = Math.min(acc + elapsed, 250);
     while (acc >= Sim.STEP_MS) {
       Sim.step(room.world);
       acc -= Sim.STEP_MS;
@@ -163,6 +201,7 @@ wss.on('connection', (ws) => {
   ws.on('message', (raw) => {
     let m;
     try { m = JSON.parse(raw); } catch { return; }
+    if (!m || typeof m !== 'object') return;
 
     // Pre-match messages
     if (ws.lobby) {
@@ -180,9 +219,11 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    // In-match messages
+ 
+  // In-match messages
     if (!ws.room || ws.room.over) return;
     if (m.type === 'input') {
+      if (!ws.room.started) return;
       const wheel = ws.room.world.wheels[ws.slot];
       if (!wheel) return;
       const wasBoosting = wheel.input.boost;
@@ -194,6 +235,10 @@ wss.on('connection', (ws) => {
       };
     }
   });
+
+  ws.on('error', () => {
+     
+  }); // in the connection handler; without it Node treats the socket error as fatal
 
   ws.on('close', () => {
     if (ws.lobby) removeFromLobby(ws);
