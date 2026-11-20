@@ -296,9 +296,11 @@
     if (a.isKing && !b.isKing) {
       a.isKing = false;
       b.isKing = true;
+      //console.log(`Wheel ${b.id} is now the king!`);
     } else if (!a.isKing && b.isKing) {
       a.isKing = true;
       b.isKing = false;
+      //console.log(`Wheel ${a.id} is now the king!`);
     }
     const e = (a.restitution + b.restitution) / 2;
     const j = (1 + e) * approach / 2;
@@ -346,6 +348,7 @@
    * @property {number} y - Center y.
    * @property {number} angle - Rotation in radians.
    * @property {boolean} active - Whether the wheel is still active.
+   * @property {boolean} isKing - Whether the wheel is the king.
    */
 
   /**
@@ -359,6 +362,7 @@
       y: r2(w.y),
       angle: r2(w.angle),
       active: w.active,
+      isKing: w.isKing
     }));
   }
 

@@ -7,7 +7,7 @@ const INTERP_DELAY = 100; // ms. Draw the world this far in the past so there ar
  * Player colors used for rendering up to 4 wheels.
  * @const {string[]}
  */
-const COLORS = ['#4a90d9', '#e8833a', '#38a169', '#9b59b6'];
+const COLORS = ['hsl(210.63 65.3% 57.06%)', 'hsl(25.17 79.09% 56.86%)', 'hsl(148 48.39% 42.55%)', 'hsl(282.58 38.91% 53.14%)'];
 
 /**
  * Active WebSocket connection to the game server.
@@ -85,11 +85,11 @@ function setupLobbyUi() {
     top: '50%',
     left: '50%',
     transform: 'translate(-50%, -50%)',
-    background: 'rgba(255, 255, 255, 0.94)',
-    color: '#111',
+    background: 'hsla(0 0% 100% / 0.94)',
+    color: 'hsl(0 0% 6.67%)',
     padding: '20px 24px',
     borderRadius: '12px',
-    boxShadow: '0 8px 28px rgba(0, 0, 0, 0.35)',
+    boxShadow: '0 8px 28px hsla(0 0% 0% / 0.35)',
     display: 'none',
     flexDirection: 'column',
     gap: '12px',
@@ -149,7 +149,7 @@ function renderLobbyUi() {
   const selectorEl = document.getElementById('world-select');
   const startBtn = document.getElementById('start-match-btn');
 
-  playersEl.textContent = `Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
+  playersEl.textContent = `(k)Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
   selectorEl.value = String(lobbyState.worldIndex);
   selectorEl.disabled = !lobbyState.isHost;
   startBtn.style.display = lobbyState.isHost ? 'block' : 'none';
@@ -306,10 +306,10 @@ function draw() {
     push();
     switch (w.type) {
       case 'solid': stroke(100); break;
-      case 'grip':  stroke('#07144F'); fill('#000000'); break;
-      case 'ice':   stroke('#00C8C8'); fill('#08AAAA'); break;
-      case 'fire':  stroke('#840202'); fill('#FF7300'); break;
-      case 'rubber': stroke('#0A4D00'); fill('#0E5E01'); break;
+      case 'grip':  stroke('hsl(229.17 83.72% 16.86%)'); fill('hsl(0 0% 0%)'); break;
+      case 'ice':   stroke('hsl(180 100% 39.22%)'); fill('hsl(180 91.01% 34.9%)'); break;
+      case 'fire':  stroke('hsl(0 97.01% 26.27%)'); fill('hsl(27.06 100% 50%)'); break;
+      case 'rubber': stroke('hsl(112.21 100% 15.1%)'); fill('hsl(111.61 97.89% 18.63%)'); break;
       default:      stroke(150); break;
     }
     let dy = w.y2 - w.y1;
@@ -323,7 +323,7 @@ function draw() {
     pop();
   }
   if (wheels) wheels.forEach((w, i) => {
-    if (w && w.active !== false) drawWheel(w, COLORS[i] || '#666', i === myIndex);
+    if (w && w.active !== false) drawWheel(w, COLORS[i] || 'hsl(0 0% 40%)', i === myIndex);
   });
 
   drawingContext.restore();
@@ -397,7 +397,7 @@ function sendInput() {
 
 /**
  * Blend the two snapshots that surround the current render time.
- * @returns {{ x: number, y: number, angle: number, active: boolean }[] | null}
+ * @returns {{ x: number, y: number, angle: number, active: boolean, isKing: boolean }[] | null}
  */
 function sampleState() {
   if (snapshots.length === 0 || clockOffset === null) return null;
@@ -411,6 +411,7 @@ function sampleState() {
     const wb = b.wheels[i];
     if (!wb) return wa;
     const isActive = wa.active !== false && wb.active !== false;
+    const isKing = k < 0.5 ? wa.isKing === true : wb.isKing === true;
     // x wraps around, so blend the shorter way around, which may cross the wrap.
     let deltaX = wb.x - wa.x;
     if (deltaX > Sim.WRAP_PERIOD / 2) deltaX -= Sim.WRAP_PERIOD;
@@ -418,7 +419,7 @@ function sampleState() {
     let blendedX = wa.x + deltaX * k;
     if (blendedX < -Sim.WRAP_MARGIN) blendedX += Sim.WRAP_PERIOD;
     if (blendedX >= Sim.W + Sim.WRAP_MARGIN) blendedX -= Sim.WRAP_PERIOD;
-    return { x: blendedX, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k), active: isActive };
+    return { x: blendedX, y: lerp(wa.y, wb.y, k), angle: lerp(wa.angle, wb.angle, k), active: isActive, isKing };
   });
 }
 
@@ -431,6 +432,7 @@ function sampleState() {
 function drawWheel(w, col, isMe) {
   const r = 10;
   push();
+  if (isMe) { noStroke(); fill(col); textAlign(CENTER); textSize(10); text('▼', w.x, w.y - 16); stroke(0); }
   translate(w.x, w.y);
   fill(col);
   circle(0, 0, r * 2);
@@ -441,22 +443,27 @@ function drawWheel(w, col, isMe) {
     line(-r, 0, 0, 0);
     rotate(QUARTER_PI);
   }
-  if (w.isKing) {
-    fill('yellow');
-    translate(0, -r * 0.6);
-    beginShape();
-      vertex ( 0 - w.radius, 0 + w.radius/2);
-      vertex ( 0 -w.radius*1.2,0 - w.radius);
-      vertex ( 0 -w.radius*0.6,0 -w.radius*0.6);
-      vertex ( 0 ,0 -w.radius*1.2);
-      vertex ( 0 +w.radius*0.6,0-w.radius*0.6);
-      vertex ( 0 +w.radius*1.2,0 -w.radius);
-      vertex ( 0 +w.radius,0 +w.radius/2)
-      vertex ( 0 -w.radius, 0+w.radius/2);
-    endShape();
-  }
+  
   pop();
-  if (isMe) { noStroke(); fill(col); textAlign(CENTER); textSize(10); text('▼', w.x, w.y - 16); stroke(0); }
+  
+  if (w.isKing) { // Draw a crown above the king wheel
+    push();  
+  translate(w.x, w.y- r*1.8);
+    noStroke();
+    fill(255, 255, 0,200);
+    //translate(0, 0);
+    beginShape();
+      vertex ( 0 - r*0.5, 0 + r*0.5);
+      vertex ( 0 -r*0.75,0 - r*0.25);
+      vertex ( 0 -r*0.4,0 -r*0.1);
+      vertex ( 0 ,0 -r*0.6);
+      vertex ( 0 +r*0.4,0-r*0.1);
+      vertex ( 0 +r*0.75,0 -r*0.25);
+      vertex ( 0 +r*0.5,0 +r*0.5)
+      vertex ( 0 -r*0.5, 0+r*0.5);
+    endShape();
+    pop();
+  }  
 }
 
 /**

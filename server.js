@@ -123,6 +123,7 @@ function launchMatch(currentLobby) {
     over: false,
     started: false,
     countdownMs: COUNTDOWN_MS,
+    countdownElapsedMs: 0,
     lastShownSec: Math.ceil(COUNTDOWN_MS / 1000),
   };
 
@@ -148,6 +149,7 @@ function launchMatch(currentLobby) {
 
     if (!room.started) {
       room.countdownMs = Math.max(0, room.countdownMs - elapsed);
+      room.countdownElapsedMs += elapsed;
       const shownSec = Math.ceil(room.countdownMs / 1000);
       if (shownSec !== room.lastShownSec && shownSec > 0) {
         room.lastShownSec = shownSec;
@@ -173,7 +175,7 @@ function launchMatch(currentLobby) {
       if (countdownTick++ % 12 === 0) {
         const msg = {
           type: 'state',
-          serverTime: 0,
+          serverTime: room.countdownElapsedMs,
           wheels: Sim.snapshot(room.world),
           countdownMs: room.countdownMs,
         };
@@ -190,7 +192,7 @@ function launchMatch(currentLobby) {
       if (simTick % 2 === 0) { // 30 Hz snapshots
         const msg = {
           type: 'state',
-          serverTime: simTick * Sim.STEP_MS,
+          serverTime: room.countdownElapsedMs + simTick * Sim.STEP_MS,
           wheels: Sim.snapshot(room.world),
         };
         for (const ws of room.players) send(ws, msg);
