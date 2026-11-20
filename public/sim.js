@@ -83,7 +83,7 @@
         { x1: -WRAP_MARGIN, y1: 0,          x2: W + WRAP_MARGIN, y2: 0,          type: 'fire' }, // ceiling
         { x1: W * 0.1,   y1: H -GROUND -35, x2: W * 0.25, y2: H - GROUND, type: 'rubber' }, // left ledge
         { x1: W * 0.1,   y1: H -GROUND -35, x2: W * 0.1,  y2: H - GROUND, type: 'rubber' }, // vertical
-        { x1: W * 0.75, y1: H * 0.65, x2: W * 0.9,  y2: H * 0.15, type: 'grip' }, // right ledge
+        { x1: W * 0.9, y1: H -GROUND, x2: W,  y2: H * 0.45, type: 'grip' }, // right ledge
         { x1: W * 0.375, y1: H * 0.35, x2: W * 0.625, y2: H * 0.35, type: 'ice' }, // high middle ledge
       ],
       spawnPoints: [
@@ -117,6 +117,7 @@
    * @property {number} angle - Rotation in radians, for drawing.
    * @property {number} radius - Wheel radius.
    * @property {number} restitution - Bounciness in wheel-against-wheel hits.
+   * @property {boolean} isKing - True if this wheel is the king of the hill (hasn't been touched by a wheel who isn't king).
    * @property {boolean} touching - True if the wheel touched a wall during the last tick.
    * @property {number} boostCooldown - Ticks until the next boost may fire.
    * @property {boolean} boostQueued - True if a press is waiting for the cooldown to end.
@@ -137,6 +138,7 @@
       id, active: true, x, y, vx: 0, vy: 0, spin: 0, angle: 0,
       radius: 10, restitution: 0.85,
       touching: false,
+      isKing: false,
       boostCooldown: 0, boostQueued: false, boostWait: 0, boostWasDown: false,
       input: { left: false, right: false, boost: false, boostPressed: false },
     };
@@ -162,6 +164,7 @@
     for (let i = 0; i < playerCount; i++) {
       const spawnPoint = worldDefinition.spawnPoints[i];
       wheels.push(createWheel(i, spawnPoint.x, spawnPoint.y));
+      wheels[i].isKing = i === 0; // Assume the first player is the king
     }
     return { worldIndex, walls: worldDefinition.walls, wheels };
   }
@@ -287,8 +290,16 @@
     a.x -= nx * half; a.y -= ny * half;
     b.x += nx * half; b.y += ny * half;
 
-    const approach = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+    const approach = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny; //
     if (approach <= 0) return;
+
+    if (a.isKing && !b.isKing) {
+      a.isKing = false;
+      b.isKing = true;
+    } else if (!a.isKing && b.isKing) {
+      a.isKing = true;
+      b.isKing = false;
+    }
     const e = (a.restitution + b.restitution) / 2;
     const j = (1 + e) * approach / 2;
     a.vx -= nx * j; a.vy -= ny * j;
@@ -300,6 +311,18 @@
    * @param {WorldState} world - The world to advance.
    */
   function step(world) {
+    let kingCount = 0;
+    for (const w of world.wheels) {
+      if (!w.active) continue;
+      applyInput(w);
+      integrate(w);
+      if (w.isKing) kingCount++;
+    }
+
+    if (kingCount === 0 && world.wheels.length > 0) {
+      world.wheels[0].isKing = true;
+    }
+    
     for (const w of world.wheels) {
       if (!w.active) continue;
       applyInput(w);

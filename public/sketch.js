@@ -441,6 +441,20 @@ function drawWheel(w, col, isMe) {
     line(-r, 0, 0, 0);
     rotate(QUARTER_PI);
   }
+  if (w.isKing) {
+    fill('yellow');
+    translate(0, -r * 0.6);
+    beginShape();
+      vertex ( 0 - w.radius, 0 + w.radius/2);
+      vertex ( 0 -w.radius*1.2,0 - w.radius);
+      vertex ( 0 -w.radius*0.6,0 -w.radius*0.6);
+      vertex ( 0 ,0 -w.radius*1.2);
+      vertex ( 0 +w.radius*0.6,0-w.radius*0.6);
+      vertex ( 0 +w.radius*1.2,0 -w.radius);
+      vertex ( 0 +w.radius,0 +w.radius/2)
+      vertex ( 0 -w.radius, 0+w.radius/2);
+    endShape();
+  }
   pop();
   if (isMe) { noStroke(); fill(col); textAlign(CENTER); textSize(10); text('▼', w.x, w.y - 16); stroke(0); }
 }
