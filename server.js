@@ -4,6 +4,13 @@ const path = require('path');
 const { WebSocketServer } = require('ws');
 const Sim = require('./public/sim.js');
 
+
+/**
+ * The Network IP for sharing
+ * @type {string}
+ */
+const SERVER_IP = getServerIp();
+
 /**
  * The port the server listens on.
  * @type {number}
@@ -45,6 +52,24 @@ const server = http.createServer((req, res) => {
   });
 });
 
+/**
+ * Get the Network Interface IP address of the server, or fallback to localhost.
+ * @returns {string}
+ */
+function getServerIp() {
+  const os = require('os');
+  const interfaces = os.networkInterfaces();
+  let fallbackIp = null;
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        if (iface.address.startsWith('192.168.')) return iface.address;
+        if (fallbackIp === null) fallbackIp = iface.address;
+      }
+    }
+  }
+  return fallbackIp || 'localhost';
+}
 /**
  * WebSocket server used for lobby and gameplay synchronization.
  * @type {WebSocketServer}
@@ -100,6 +125,8 @@ function broadcastLobby() {
     playerCount: lobby.players.length,
     maxPlayers: MAX_PLAYERS,
     hostSlot: 0,
+    serverIp: SERVER_IP,
+    serverPort: PORT,
   };
   lobby.players.forEach((ws, slot) => {
     ws.slot = slot;

@@ -26,12 +26,12 @@ let myIndex = null;
 let status = 'Connecting...';
 /**
  * Current lobby state while waiting before the match starts, or null once in-game.
- * @type {{ worldIndex: number, worlds: { index: number, name: string }[], playerCount: number, maxPlayers: number, isHost: boolean } | null}
+ * @type {{ worldIndex: number, worlds: { index: number, name: string }[], playerCount: number, maxPlayers: number, isHost: boolean, serverIp: string, serverPort: number | string } | null}
  */
 let lobbyState = null;
 /**
  * Recent network snapshots used for interpolation.
- * @type {{ t: number, wheels: { x: number, y: number, angle: number }[] }[]}
+ * @type {{ t: number, wheels: { x: number, y: number, angle: number , isKing: boolean}[] }[]}
  */
 let snapshots = [];
 /**
@@ -98,9 +98,9 @@ function setupLobbyUi() {
     fontFamily: 'sans-serif',
   });
 
-  const title = document.createElement('div');
-  title.id = 'lobby-players';
-  title.style.fontWeight = 'bold';
+  const playerAnnounce = document.createElement('div');
+  playerAnnounce.id = 'lobby-players';
+  playerAnnounce.style.fontWeight = 'bold';
 
   const label = document.createElement('label');
   label.textContent = 'World: ';
@@ -128,9 +128,24 @@ function setupLobbyUi() {
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'start_game' }));
   });
+  
+  const title = document.createElement('h2');
+  title.textContent = 'Welcome to MultiWheels!';
+  title.style.margin = '0 0 8px 0';
+
+  const lobbyDesc = document.createElement('p');
+  lobbyDesc.textContent = 'Waiting for players to join.';
+  lobbyDesc.style.margin = '0 0 12px 0';
+
+  const inviteLink = document.createElement('a');
+  inviteLink.id = 'lobby-invite';
+  inviteLink.target = '_blank';
+  inviteLink.rel = 'noopener';
+  inviteLink.style.color = '#1a56db';
+  inviteLink.style.wordBreak = 'break-all';
 
   label.appendChild(selector);
-  lobbyUiEl.append(title, label, startBtn);
+  lobbyUiEl.append(title, lobbyDesc, playerAnnounce, inviteLink, label, startBtn);
   document.body.appendChild(lobbyUiEl);
 }
 
@@ -148,8 +163,18 @@ function renderLobbyUi() {
   const playersEl = document.getElementById('lobby-players');
   const selectorEl = document.getElementById('world-select');
   const startBtn = document.getElementById('start-match-btn');
+  
 
-  playersEl.textContent = `(k)Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
+  playersEl.textContent = `Players in lobby: ${lobbyState.playerCount} / ${lobbyState.maxPlayers} (You: P${lobbyState.you + 1})`;
+  const inviteLink = document.getElementById('lobby-invite');
+  if (lobbyState.serverIp && lobbyState.serverPort) {
+    const inviteUrl = `http://${lobbyState.serverIp}:${lobbyState.serverPort}/`;
+    inviteLink.textContent = `Invite players: ${inviteUrl}`;
+    inviteLink.href = inviteUrl;
+  } else {
+    inviteLink.textContent = '';
+    inviteLink.removeAttribute('href');
+  }
   selectorEl.value = String(lobbyState.worldIndex);
   selectorEl.disabled = !lobbyState.isHost;
   startBtn.style.display = lobbyState.isHost ? 'block' : 'none';
@@ -170,9 +195,9 @@ function connect() {
       if (Sim.WORLDS[m.worldIndex]) currentWalls = Sim.WORLDS[m.worldIndex].walls;
       status = m.isHost
         ? 'Select a world and press Start Match (or wait for up to 4 players).'
-        : `Waiting for host to start (${Sim.WORLDS[m.worldIndex]?.name ?? 'World'})...`;
+        : `Waiting for host to start world (${Sim.WORLDS[m.worldIndex]?.name ?? 'World'})...`;
       renderLobbyUi();
-    
+
     } else if (m.type === 'start') {
       lobbyState = null;
       renderLobbyUi();
@@ -257,7 +282,7 @@ function setupFullscreenButton() {
       } else {
         await enterFullscreen.call(page);
         if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock('landscape').catch(() => {}); // not every browser allows it
+          await screen.orientation.lock('landscape').catch(() => { }); // not every browser allows it
         }
       }
     } catch (error) {
@@ -278,10 +303,7 @@ function draw() {
   const offsetY = (height - Sim.H * zoom) / 2;
 
   sendInput();
-  //if (myIndex !== null && ws && ws.readyState === WebSocket.OPEN) {
-   // sendInput();
- // }
- 
+
   const canSample = myIndex !== null && ws && ws.readyState === WebSocket.OPEN;
   const wheels = canSample ? sampleState() : null;
 
@@ -300,17 +322,16 @@ function draw() {
   fill(220);
   rect(0, 0, Sim.W, Sim.H);
   pop();
-  
 
   for (const w of currentWalls) {
     push();
     switch (w.type) {
       case 'solid': stroke(100); break;
-      case 'grip':  stroke('hsl(229.17 83.72% 16.86%)'); fill('hsl(0 0% 0%)'); break;
-      case 'ice':   stroke('hsl(180 100% 39.22%)'); fill('hsl(180 91.01% 34.9%)'); break;
-      case 'fire':  stroke('hsl(0 97.01% 26.27%)'); fill('hsl(27.06 100% 50%)'); break;
+      case 'grip': stroke('hsl(229.17 83.72% 16.86%)'); fill('hsl(0 0% 0%)'); break;
+      case 'ice': stroke('hsl(180 100% 39.22%)'); fill('hsl(180 91.01% 34.9%)'); break;
+      case 'fire': stroke('hsl(0 97.01% 26.27%)'); fill('hsl(27.06 100% 50%)'); break;
       case 'rubber': stroke('hsl(112.21 100% 15.1%)'); fill('hsl(111.61 97.89% 18.63%)'); break;
-      default:      stroke(150); break;
+      default: stroke(150); break;
     }
     let dy = w.y2 - w.y1;
     let dx = w.x2 - w.x1;
@@ -341,7 +362,7 @@ function draw() {
     pop();
   }
 
-  if (status && !lobbyState) {
+  if (status ) {  //
     push();
     fill(200, 200, 200, 150);
     rectMode(CENTER);
@@ -388,7 +409,7 @@ function sendInput() {
   if (myIndex === null || !ws || ws.readyState !== WebSocket.OPEN) return;
   const msg = JSON.stringify({
     type: 'input',
-    left:  keyIsDown('KeyA') || keyIsDown('ArrowLeft') || touchInput.left,
+    left: keyIsDown('KeyA') || keyIsDown('ArrowLeft') || touchInput.left,
     right: keyIsDown('KeyD') || keyIsDown('ArrowRight') || touchInput.right,
     boost: keyIsDown('KeyW') || keyIsDown('ArrowUp') || keyIsDown('Space') || touchInput.boost,
   });
@@ -443,27 +464,27 @@ function drawWheel(w, col, isMe) {
     line(-r, 0, 0, 0);
     rotate(QUARTER_PI);
   }
-  
+
   pop();
-  
+
   if (w.isKing) { // Draw a crown above the king wheel
-    push();  
-  translate(w.x, w.y- r*1.8);
+    push();
+    translate(w.x, w.y - r * 1.8);
     noStroke();
-    fill(255, 255, 0,200);
-    //translate(0, 0);
+    fill(255, 255, 0, 200);
+    
     beginShape();
-      vertex ( 0 - r*0.5, 0 + r*0.5);
-      vertex ( 0 -r*0.75,0 - r*0.25);
-      vertex ( 0 -r*0.4,0 -r*0.1);
-      vertex ( 0 ,0 -r*0.6);
-      vertex ( 0 +r*0.4,0-r*0.1);
-      vertex ( 0 +r*0.75,0 -r*0.25);
-      vertex ( 0 +r*0.5,0 +r*0.5)
-      vertex ( 0 -r*0.5, 0+r*0.5);
+    vertex(0 - r * 0.5, 0 + r * 0.5);
+    vertex(0 - r * 0.75, 0 - r * 0.25);
+    vertex(0 - r * 0.4, 0 - r * 0.1);
+    vertex(0, 0 - r * 0.6);
+    vertex(0 + r * 0.4, 0 - r * 0.1);
+    vertex(0 + r * 0.75, 0 - r * 0.25);
+    vertex(0 + r * 0.5, 0 + r * 0.5)
+    vertex(0 - r * 0.5, 0 + r * 0.5);
     endShape();
     pop();
-  }  
+  }
 }
 
 /**

@@ -322,7 +322,10 @@
     }
 
     if (kingCount === 0 && world.wheels.length > 0) {
-      world.wheels[0].isKing = true;
+      // If no wheel is king, assign a random active wheel as the new king. This ensures that there is always a king in the game.
+      const activeWheels = world.wheels.filter(w => w.active);
+      const randomIndex = Math.floor(Math.random() * activeWheels.length);
+      activeWheels[randomIndex].isKing = true;
     }
     
     for (const w of world.wheels) {
