@@ -169,7 +169,7 @@ function renderLobbyUi() {
   const inviteLink = document.getElementById('lobby-invite');
   if (lobbyState.serverIp && lobbyState.serverPort) {
     const inviteUrl = `http://${lobbyState.serverIp}:${lobbyState.serverPort}/`;
-    inviteLink.textContent = `Invite players: ${inviteUrl}`;
+    inviteLink.textContent = `Invite link: ${inviteUrl}`;
     inviteLink.href = inviteUrl;
   } else {
     inviteLink.textContent = '';

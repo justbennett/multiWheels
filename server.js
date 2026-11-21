@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { WebSocketServer } = require('ws');
 const Sim = require('./public/sim.js');
 
@@ -57,9 +58,10 @@ const server = http.createServer((req, res) => {
  * @returns {string}
  */
 function getServerIp() {
-  const os = require('os');
   const interfaces = os.networkInterfaces();
   let fallbackIp = null;
+
+  // Prefer a 192.168.x.x LAN IP
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
       if (iface.family === 'IPv4' && !iface.internal) {
@@ -67,6 +69,26 @@ function getServerIp() {
         if (fallbackIp === null) fallbackIp = iface.address;
       }
     }
+  }
+
+  // Try to resolve hostname to an IP and use it if it's a LAN IP
+  try {
+    const hostname = os.hostname();
+    if (hostname && hostname !== 'localhost') {
+      const dns = require('dns');
+      const resolved = dns.lookupSync
+        ? dns.lookupSync(hostname)
+        : null;
+      if (resolved && resolved.address && resolved.address.startsWith('192.168.')) {
+        return resolved.address;
+      }
+    }
+  } catch (e) {
+    // Ignore DNS errors
+  }
+
+  if (!fallbackIp) {
+    console.warn('[WARN] No external IPv4 address found. Using "localhost" as the server IP. This may not be reachable from other devices on your network.');
   }
   return fallbackIp || 'localhost';
 }
