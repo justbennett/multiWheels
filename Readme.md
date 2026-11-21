@@ -4,10 +4,11 @@ A small browser-based multiplayer physics sim built with Node.js. Two clients ca
 
 ## TODO:
 
-- Scoring/game system, probably start with "tag" mode
-- Add a "hazard" wall type
-- Improve the physics
-- 
+- Scoring/game system
+- Tag mode ✓
+- Add a various wall types ✓
+- Improve the physics ✓
+- Make hazard wall types have consequences
 
 ## Requirements
 
