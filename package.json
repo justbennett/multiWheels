@@ -8,7 +8,7 @@
     "docs": "jsdoc server.js public/sim.js -d out"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.23.0"
   },
   "devDependencies": {
     "jsdoc": "^4.0.5"
